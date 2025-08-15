@@ -3,10 +3,9 @@ import { User } from "../models/user.model.js";
 import { Task } from "../models/task.model.js";
 import { Ca } from "../models/ca.model.js";
 import ErrorHandler from "../utils/ErrorHandler.js";
-import { CatchAsyncErrror } from "../middleware/catchAsyncError.js";
 
 // Get dashboard data based on user role
-export const getDashboardData = CatchAsyncErrror(
+export const getDashboardData =  CatchAsyncErrror(
   async (req, res, next) => {
     try {
       const userId = req.user?._id;

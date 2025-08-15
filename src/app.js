@@ -10,6 +10,7 @@ import authRouter from "./routes/auth.routes.js";
 import caRouter from "./routes/ca.routes.js";
 import userRouter from "./routes/user.routes.js";
 import { handleErrors } from "./utils/ErrorHandler.js";
+// import dashboardRouter from "./routes/dashboard.routes.js";
 
 
 const allowedOrigins = [
@@ -77,6 +78,11 @@ app.use("/api/v1/healthcheck", healthcheckRouter);
 app.use("/api/v1/auth", authRouter);
 app.use("/api/v1/ca", caRouter);
 app.use("/api/v1/user", userRouter);
+// app.use("/api/v1/user2", dashboardRouter);
+
+
+//admin-routes
+
 
 
 app.use(handleErrors);

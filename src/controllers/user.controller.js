@@ -22,3 +22,16 @@ export const getMe = CatchAsyncErrror(async (req, res, next) => {
         user
     });
 });
+
+
+//getAllUsers --admin
+export const getAllUsers = CatchAsyncErrror(async (req, res, next) => {
+    const users = await User.find().select("-password -refreshToken -__v");
+    if (!users || users.length === 0) {
+        return next(new ErrorHandler("No users found", 404));
+    }
+    res.status(200).json({
+        success: true,
+        users
+    });
+});
