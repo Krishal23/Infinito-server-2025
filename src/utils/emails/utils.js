@@ -10,12 +10,12 @@ export const isIITPEmail = (email) =>
 export const getSenderInfo = (recipientEmail, config) => {
   if (isIITPEmail(recipientEmail)) {
     return {
-      name: "IITP Community Platform",
+      name: "Infinito",
       address: config.OUTLOOK_USERNAME || config.GMAIL_USERNAME
     };
   }
   return {
-    name: config.COMPANY_NAME || "Community Platform",
+    name: config.COMPANY_NAME || "Infinito",
     address: config.GMAIL_USERNAME
   };
 };

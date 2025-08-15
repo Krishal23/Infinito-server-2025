@@ -24,10 +24,12 @@ export const sendOTPEmail = async (email, otp, type = "signup", userData = {}) =
     const emailContent = ejsContent || getEnhancedOTPTemplate(otp, type, { ...userData, email });
 
     const info = await transporter.sendMail({
-      from: "Team Infinito 2025 <no-reply@infinito2025.com>",
+      from: "Infinito",
       to: email,
+      replyTo: "support@infinito2025.com",
       subject: emailContent.subject,
-      html: emailContent.html
+      html: emailContent.html,
+      text: emailContent.text 
     });
 
     return { success: true, messageId: info.messageId };
