@@ -35,3 +35,29 @@ export const getAllUsers = CatchAsyncErrror(async (req, res, next) => {
         users
     });
 });
+
+
+
+//updateRole --admin
+export const updateRole = CatchAsyncErrror(async (req, res, next) => {
+    const userId=req.params;
+    const finalRole=req.body.role;
+    const user = await User.findById(userId);
+    if (!user) {
+        return res.status(404).json({ success: false, message: "User not found" });
+    }
+if (user.role === finalRole) {
+        await user.save(); 
+        return res.status(200).json({ success: true, message: "Role is already up-to-date", user });
+    }
+ if (finalRole === "CA" || finalRole === "moderator") {
+        user.role = finalRole;
+        await user.save();
+        return res.status(200).json({ success: true, message: `Role updated to ${finalRole}`, user });
+    } else {
+        return res.status(400).json({ success: false, message: "Invalid role provided" });
+    }
+});
+
+
+

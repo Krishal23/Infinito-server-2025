@@ -82,6 +82,17 @@ export const getMyCaApplication = CatchAsyncErrror(async (req, res) => {
   return res.status(200).json({ application });
 });
 
+//getAllCaApplication --by admin
+export const getAllCaApplication = CatchAsyncErrror(async (req, res) => {
+  const applications = await Ca.find();
+
+  if (!applications || applications.length === 0) {
+    return res.status(404).json({ msg: "No CA applications found." });
+  }
+
+  return res.status(200).json({ applications });
+});
+
 export const acceptCaApplication = CatchAsyncErrror(async (req, res) => {
   const caId = req.params.id;
   const reviewerId = req.user._id;

@@ -4,6 +4,7 @@ import {
   getMyCaApplication,
   acceptCaApplication,
   rejectCaApplication,
+  getAllCaApplication
 } from "../controllers/ca.controller.js";
 import { verifyToken } from "../middlewares/verifyToken.js";
 import { authorizeRole } from "../middlewares/authorizeRole.js";
@@ -15,6 +16,7 @@ caRouter.post("/apply", verifyToken,
    applyForCa);
 
 caRouter.get("/application", verifyToken, getMyCaApplication);
+caRouter.get("/all-applications", verifyToken,authorizeRole("admin", "moderator"), getAllCaApplication);
 
 caRouter.put(
   "/:id/accept",
