@@ -31,6 +31,10 @@ const caSchema = new Schema({
     required: true,
     trim: true,
   },
+  rollno:{
+    type:String,
+    required:true
+  },
   por: {
     type: String,
     trim: true,

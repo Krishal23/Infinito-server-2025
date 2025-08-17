@@ -10,6 +10,7 @@ export const applyForCa = CatchAsyncErrror(async (req, res) => {
     email,
     fullName,
     collegeName,
+    rollno,
     collegeYear,
     por,
     collegeAddress,
@@ -34,6 +35,9 @@ export const applyForCa = CatchAsyncErrror(async (req, res) => {
   if (!phoneNumber?.trim()) {
     return res.status(400).json({ msg: "Phone number is required" });
   }
+  if (!rollno?.trim()) {
+    return res.status(400).json({ msg: "Roll Number is required" });
+  }
   if (!howDidYouKnow) {
     return res.status(400).json({ msg: "Please select how you know about Infinito" });
   }
@@ -47,6 +51,7 @@ export const applyForCa = CatchAsyncErrror(async (req, res) => {
     userId,
     username,
     email,
+    rollno,
     fullName: fullName.trim(),
     collegeName: collegeName.trim(),
     collegeYear: collegeYear.trim(),
@@ -84,7 +89,9 @@ export const getMyCaApplication = CatchAsyncErrror(async (req, res) => {
 
 //getAllCaApplication --by admin
 export const getAllCaApplication = CatchAsyncErrror(async (req, res) => {
-  const applications = await Ca.find();
+  const applications = await Ca.find()
+    .populate("reviewedBy", "fullName email username"); 
+
 
   if (!applications || applications.length === 0) {
     return res.status(404).json({ msg: "No CA applications found." });
