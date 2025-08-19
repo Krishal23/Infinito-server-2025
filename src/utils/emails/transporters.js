@@ -21,7 +21,6 @@ export const outlookTransporter = nodemailer.createTransport({
 });
 
 export const verifyTransporters = () => {
-  console.log(process.env.OUTLOOK_USERNAME," ",process.env.OUTLOOK_PASSWORD)
   gmailTransporter.verify((err) =>
     console.log(err ? "Gmail transporter failed:" + err.message : "Gmail ready")
   );
