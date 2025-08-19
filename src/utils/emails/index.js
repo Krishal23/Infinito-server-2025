@@ -1,6 +1,7 @@
 import dotenv from "dotenv";
 import { gmailTransporter, outlookTransporter, verifyTransporters } from "./transporters.js";
 import { getEnhancedOTPTemplate } from "./templates/enhancedTemplate.js";
+import { getCAApplicationTemplate } from "./templates/getCAApplicationTemplate.js";
 import { renderEJSTemplate } from "./templates/ejsRenderer.js";
 import { getSenderInfo, isIITPEmail } from "./utils.js";
 
@@ -24,9 +25,9 @@ export const sendOTPEmail = async (email, otp, type = "signup", userData = {}) =
     const emailContent = ejsContent || getEnhancedOTPTemplate(otp, type, { ...userData, email });
 
     const info = await transporter.sendMail({
-      from: "Infinito",
+      from: "Team Infinito 2025",
       to: email,
-      replyTo: "support@infinito2025.com",
+      replyTo: "mpr.infinito@iitp.ac.in",
       subject: emailContent.subject,
       html: emailContent.html,
       text: emailContent.text 
@@ -44,5 +45,30 @@ export const sendWelcomeEmail = async (email, userData) => {
   const senderInfo = getSenderInfo(email, process.env);
 
   const html = `<h1>Welcome, ${userData.fullname}</h1>`;
-  await transporter.sendMail({ from: senderInfo, to: email, subject: "🎉 Welcome!", html });
+  await transporter.sendMail({ from: senderInfo, to: email, subject: "Welcome!", html });
+};
+
+
+
+export const sendCAApplicationEmail = async (email, status, userData = {}) => {
+  try {
+    const transporter = getTransporter(email);
+    const senderInfo = getSenderInfo(email, process.env);
+
+    const emailContent = getCAApplicationTemplate(status, { ...userData, email });
+
+    const info = await transporter.sendMail({
+      from: "Team Infinito 2025",
+      to: email,
+      replyTo: "mpr.infinito@iitp.ac.in",
+      subject: emailContent.subject,
+      html: emailContent.html,
+      text: emailContent.text,
+    });
+
+    return { success: true, messageId: info.messageId };
+  } catch (err) {
+    console.error(err);
+    return { success: false, error: err.message };
+  }
 };

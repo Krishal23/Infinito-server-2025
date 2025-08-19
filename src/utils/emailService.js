@@ -57,12 +57,12 @@ const getTransporter = (recipientEmail) => {
 const getSenderInfo = (recipientEmail) => {
     if (isIITPEmail(recipientEmail)) {
         return {
-            name: 'IITP Community Platform',
+            name: `"Infinito 2025" <${process.env.OUTLOOK_USERNAME}>`,
             address: process.env.OUTLOOK_USERNAME || process.env.GMAIL_USERNAME
         };
     } else {
         return {
-            name: process.env.COMPANY_NAME || 'Community Platform',
+            name: `"Infinito 2025" <${process.env.GMAIL_USERNAME}>`,
             address: process.env.GMAIL_USERNAME
         };
     }

@@ -3,10 +3,23 @@ import { isIITPEmail } from "../utils.js";
 export const getEnhancedOTPTemplate = (otp, type, { fullname = "User", email }) => {
   const isIITP = isIITPEmail(email);
   const color = isIITP ? "#1e3c72" : "#667eea";
-  const platformName = isIITP ? "IITP Community" : "Our Platform";
-  const subject = type === "signup"
-    ? `Welcome to ${platformName}`
-    : `${platformName} - Your Verification Code`;
+  const platformName = "Infinito 2025";
+
+  // Replace with your actual WhatsApp channel/group invite link
+  const whatsappLink = "https://chat.whatsapp.com/your-invite-link";
+
+  const subject =
+    type === "signup"
+      ? `Welcome to ${platformName}`
+      : `${platformName} - Your Verification Code`;
+
+  const extraMessage =
+    type === "signup"
+      ? `
+        <p><strong>Next Step:</strong> Join our official WhatsApp channel to stay updated:<br/>
+        <a href="${whatsappLink}" style="color:#007bff;text-decoration:none;" target="_blank">Join WhatsApp Channel</a></p>
+      `
+      : "";
 
   const htmlContent = `
     <html>
@@ -24,6 +37,7 @@ export const getEnhancedOTPTemplate = (otp, type, { fullname = "User", email }) 
               <p style="font-size:36px;font-weight:bold;color:${color};text-align:center;margin:20px 0;">${otp}</p>
               <p>This code expires in 10 minutes.</p>
               <p>If you did not request this code, you can safely ignore this email.</p>
+              ${extraMessage}
               <p>Thank you,<br/>The ${platformName} Team</p>
             </td>
           </tr>
@@ -37,8 +51,21 @@ export const getEnhancedOTPTemplate = (otp, type, { fullname = "User", email }) 
     </html>
   `;
 
-  const textContent = `
-Hello ${fullname},
+  const textContent =
+    type === "signup"
+      ? `Hello ${fullname},
+
+Your ${type} code for ${platformName} is: ${otp}
+
+This code expires in 10 minutes.
+
+Next Step: Join our WhatsApp channel here: ${whatsappLink}
+
+If you did not request this code, you can safely ignore this email.
+
+Thank you,
+The ${platformName} Team`
+      : `Hello ${fullname},
 
 Your ${type} code for ${platformName} is: ${otp}
 
@@ -47,8 +74,7 @@ This code expires in 10 minutes.
 If you did not request this code, you can safely ignore this email.
 
 Thank you,
-The ${platformName} Team
-`;
+The ${platformName} Team`;
 
   return {
     subject,

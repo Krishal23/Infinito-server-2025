@@ -2,6 +2,8 @@ import nodemailer from "nodemailer";
 import dotenv from "dotenv";
 dotenv.config();
 
+
+
 export const gmailTransporter = nodemailer.createTransport({
   service: "gmail",
   auth: {
@@ -19,6 +21,7 @@ export const outlookTransporter = nodemailer.createTransport({
 });
 
 export const verifyTransporters = () => {
+  console.log(process.env.OUTLOOK_USERNAME," ",process.env.OUTLOOK_PASSWORD)
   gmailTransporter.verify((err) =>
     console.log(err ? "Gmail transporter failed:" + err.message : "Gmail ready")
   );

@@ -1,6 +1,7 @@
 import { Ca } from "../models/ca.model.js";
 import { CatchAsyncErrror } from "../middlewares/catchAsyncError.js";
 import { User } from "../models/user.model.js";
+import { sendCAApplicationEmail } from "../utils/emails/index.js";
 
 export const applyForCa = CatchAsyncErrror(async (req, res) => {
   const userId = req.user._id;
@@ -120,30 +121,64 @@ export const acceptCaApplication = CatchAsyncErrror(async (req, res) => {
   application.reviewedAt = new Date();
   await application.save();
 
+  
+  const user =await User.findByIdAndUpdate(application.userId, { role: "ca" });
+  if (!user) {
+    return res.status(404).json({ msg: "User not found" });
+  }
+
   await User.findByIdAndUpdate(application.userId, { role: "ca" });
 
+  const emailResult = await sendCAApplicationEmail(user.email, "accepted", {
+    fullname: user.fullname,
+  });
+
+  if (!emailResult.success) {
+    console.error("Email failed:", emailResult.error);
+    return res.status(200).json({
+      msg: "Application accepted, but email failed to send",
+      error: emailResult.error,
+    });
+  }
+  
   return res.status(200).json({ msg: "Application accepted successfully" });
 });
 
 export const rejectCaApplication = CatchAsyncErrror(async (req, res) => {
   const caId = req.params.id;
   const reviewerId = req.user._id;
-
+  
   const application = await Ca.findById(caId);
   if (!application) {
     return res.status(404).json({ msg: "CA application not found" ,caId,reviewerId});
   }
-
+  
   if (application.status !== "pending") {
     return res
-      .status(400)
-      .json({ msg: `Application already ${application.status}` });
+    .status(400)
+    .json({ msg: `Application already ${application.status}` });
   }
-
+  
   application.status = "rejected";
   application.reviewedBy = reviewerId;
   application.reviewedAt = new Date();
   await application.save();
+  const user = await User.findById(application.userId);
+  if (!user) {
+    return res.status(404).json({ msg: "User not found for this application" });
+  }
+
+  const emailResult = await sendCAApplicationEmail(user.email, "rejected", {
+    fullname: user.fullname,
+  });
+
+  if (!emailResult.success) {
+    console.error("Email failed:", emailResult.error);
+    return res.status(200).json({
+      msg: "Application rejected, but email failed to send",
+      error: emailResult.error,
+    });
+  }
 
   return res.status(200).json({ msg: "Application rejected successfully" });
 });
