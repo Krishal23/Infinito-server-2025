@@ -268,7 +268,7 @@ export const sendSignupOTP = CatchAsyncErrror(async (req, res, next) => {
 //         const accessToken = jwt.sign(
 //             { userId: user._id },
 //             process.env.ACCESS_TOKEN_SECRET,
-//             { expiresIn: '15m' }
+//             { expiresIn: '1d' }
 //         );
 
 //         const refreshToken = jwt.sign(
@@ -378,7 +378,7 @@ export const verifySignupOTP = CatchAsyncErrror(async (req, res, next) => {
         const accessToken = jwt.sign(
             { userId: user._id },
             process.env.ACCESS_TOKEN_SECRET,
-            { expiresIn: '15m' }
+            { expiresIn: '1d' }
         );
 
         const refreshToken = jwt.sign(
@@ -518,7 +518,7 @@ export const login = CatchAsyncErrror(async (req, res, next) => {
         const accessToken = jwt.sign(
             { userId: user._id },
             process.env.ACCESS_TOKEN_SECRET,
-            { expiresIn: '15m' }
+            { expiresIn: '1d' }
         );
 
         const refreshToken = jwt.sign(
@@ -621,7 +621,7 @@ export const loginWithOTP = CatchAsyncErrror(async (req, res, next) => {
         const accessToken = jwt.sign(
             { userId: user._id },
             process.env.ACCESS_TOKEN_SECRET,
-            { expiresIn: '15m' }
+            { expiresIn: '1d' }
         );
 
         const refreshToken = jwt.sign(
@@ -829,7 +829,7 @@ export const googleLogin = CatchAsyncErrror(async (req, res, next) => {
         const accessToken = jwt.sign(
             { userId: user._id },
             process.env.ACCESS_TOKEN_SECRET,
-            { expiresIn: "15m" }
+            { expiresIn: "1d" }
         );
 
         const refreshToken = jwt.sign(
