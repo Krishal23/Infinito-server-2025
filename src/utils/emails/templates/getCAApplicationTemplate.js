@@ -6,7 +6,7 @@ export const getCAApplicationTemplate = (status, { fullname = "User", email }) =
   const platformName = "Infinito 2025";
 
   // Replace with your actual WhatsApp invite link
-  const whatsappLink = "https://chat.whatsapp.com/your-invite-link";
+  const whatsappLink = "https://chat.whatsapp.com/LDLLM1odfO9Lp1VhVguluC ";
 
   const subject =
     status === "accepted"

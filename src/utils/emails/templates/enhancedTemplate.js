@@ -6,7 +6,7 @@ export const getEnhancedOTPTemplate = (otp, type, { fullname = "User", email }) 
   const platformName = "Infinito 2025";
 
   // Replace with your actual WhatsApp channel/group invite link
-  const whatsappLink = "https://chat.whatsapp.com/your-invite-link";
+  const whatsappLink = "https://chat.whatsapp.com/LDLLM1odfO9Lp1VhVguluC ";
 
   const subject =
     type === "signup"
