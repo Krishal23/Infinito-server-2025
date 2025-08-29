@@ -52,7 +52,33 @@ const userSchema = new mongoose.Schema({
     caApplication: {
         type: mongoose.Schema.Types.ObjectId,
         ref: "Ca"
-    }
+    },
+    eventRegistrations: [{
+        event: {
+          type: String,
+          enum: ['athletics', 'badminton', 'basketball', 'chess', 'cricket', 'football', 
+                 'kabaddi', 'lawn_tennis', 'squash', 'table_tennis', 'volleyball', 'weight_lifting'],
+          required: true
+        },
+        registrationId: {
+          type: mongoose.Schema.Types.ObjectId,
+          required: true
+        },
+        status: {
+          type: String,
+          enum: ['pending', 'confirmed', 'cancelled', 'waitlisted'],
+          default: 'pending'
+        },
+        registrationDate: {
+          type: Date,
+          default: Date.now
+        }
+      }],
+      
+      totalEventRegistrations: {
+        type: Number,
+        default: 0
+      }
 }, {
     timestamps: true
 });

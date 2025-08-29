@@ -10,31 +10,76 @@ import authRouter from "./routes/auth.routes.js";
 import caRouter from "./routes/ca.routes.js";
 import userRouter from "./routes/user.routes.js";
 import { handleErrors } from "./utils/ErrorHandler.js";
+import eventRegistrationRoutes from "./routes/eventRegistration.routes.js";
+import teamRegistrationRoutes from "./routes/teamRegistration.routes.js";
+import simpleEventRegistrationRoutes from "./routes/simpleEventRegistration.routes.js";
 // import dashboardRouter from "./routes/dashboard.routes.js";
 
 
+// Static allowlist (base)
 const allowedOrigins = [
   "http://localhost:5173",
+  "http://localhost:3000",
   "https://infinito-client-2025-6dlaq4r0t-krishal23s-projects.vercel.app",
   "https://infinito-client-2025-git-new-krishal23s-projects.vercel.app"
 ];
 
+// Allow dynamic origins via env (comma separated)
+if (process.env.CLIENT_URLS) {
+  for (const url of process.env.CLIENT_URLS.split(",").map((u) => u.trim()).filter(Boolean)) {
+    if (!allowedOrigins.includes(url)) allowedOrigins.push(url);
+  }
+}
+
+// Pattern allowlist for Vercel preview deployments and localhost on any port
+const allowedOriginPatterns = [
+  /^https?:\/\/localhost(?::\d+)?$/,
+  /^https:\/\/infinito-client-2025[\w-]*\.vercel\.app$/,
+];
+
 
 const app = express();
-app.use(cors({
+
+
+// app.options('*', cors({
+//   origin: (origin, callback) => {
+//     if (!origin) return callback(null, true);
+//     if (allowedOrigins.includes(origin)) {
+//       callback(null, true);
+//     } else {
+//       callback(new Error("Not allowed by CORS"));
+//     }
+//   },
+//   credentials: true,
+//   methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+//   allowedHeaders: ["Content-Type", "Authorization"]
+// }));
+
+
+const isProduction = process.env.NODE_ENV === "production";
+
+const corsOptions = {
   origin: (origin, callback) => {
-    // console.log(origin)
-    if (!origin) return callback(null, true);
-    if (allowedOrigins.includes(origin)) {
-      callback(null, true);
-    } else {
-      callback(new Error("Not allowed by CORS"));
+    // Log origin for debugging
+    try { console.log("CORS Origin:", origin || "<no-origin>"); } catch { }
+    // Allow all in non-production for easier local testing
+    if (!isProduction) {
+      return callback(null, true);
     }
+    if (!origin) return callback(null, true);
+    if (allowedOrigins.includes(origin) || allowedOriginPatterns.some((re) => re.test(origin))) {
+      return callback(null, true);
+    }
+    return callback(new Error("Not allowed by CORS"));
   },
   credentials: true,
   methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
-  allowedHeaders: ["Content-Type", "Authorization"]
-}));
+  allowedHeaders: ["Content-Type", "Authorization", "X-Requested-With"],
+  optionsSuccessStatus: 204,
+};
+
+// Main CORS
+app.use(cors(corsOptions));
 
 app.use(
   session({
@@ -43,7 +88,7 @@ app.use(
     saveUninitialized: false,
     cookie: {
       secure: process.env.NODE_ENV === "production",
-      maxAge: 24 * 60 * 60 * 1000, 
+      maxAge: 24 * 60 * 60 * 1000,
       httpOnly: true,
       sameSite: process.env.NODE_ENV === "production" ? "none" : "lax",
     },
@@ -78,6 +123,9 @@ app.use("/api/v1/healthcheck", healthcheckRouter);
 app.use("/api/v1/auth", authRouter);
 app.use("/api/v1/ca", caRouter);
 app.use("/api/v1/user", userRouter);
+app.use("/api/v1/events", eventRegistrationRoutes);
+app.use("/api/v1/teams", teamRegistrationRoutes);
+app.use("/api/v1/simple-events", simpleEventRegistrationRoutes);
 // app.use("/api/v1/user2", dashboardRouter);
 
 

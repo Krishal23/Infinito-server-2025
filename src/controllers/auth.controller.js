@@ -33,16 +33,17 @@ function generateOTP(length = 6) {
 //     });
 // }
 
-// // Store OTP for login verification
-// function storeLoginOTP(email, otp) {
-//     otpStorage.set(email, {
-//         otp: otp,
-//         type: 'login',
-//         expiresAt: new Date(Date.now() + 10 * 60 * 1000), // 10 minutes
-//         isUsed: false,
-//         attempts: 0
-//     });
-// }
+// Store OTP for login verification
+function storeLoginOTP(email, otp) {
+    otpStorage.set(email, {
+        otp: otp,
+        type: 'login',
+        expiresAt: new Date(Date.now() + 10 * 60 * 1000), // 10 minutes
+        lastSentAt: Date.now(),
+        isUsed: false,
+        attempts: 0
+    });
+}
 
 // export const sendSignupOTP = CatchAsyncErrror(async (req, res, next) => {
 //     console.log("Processing signup OTP request");

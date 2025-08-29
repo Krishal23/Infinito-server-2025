@@ -1,5 +1,12 @@
 {
+  "name": "infinito-backend",
+  "version": "1.0.0",
   "type": "module",
+  "scripts": {
+    "start": "node index.js",
+    "dev": "nodemon index.js",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
   "dependencies": {
     "axios": "^1.11.0",
     "bcrypt": "^6.0.0",
@@ -16,5 +23,8 @@
     "mongoose": "^8.16.5",
     "nodemailer": "^7.0.5",
     "react-toastify": "^11.0.5"
+  },
+  "devDependencies": {
+    "nodemon": "^3.0.0"
   }
 }
