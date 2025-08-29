@@ -5,19 +5,20 @@ const baseEventFields = {
     userId: {
         type: mongoose.Schema.Types.ObjectId,
         ref: "User",
-        aadharId: {
-            type: String,
-            trim: true,
-            required: [true, "Aadhar ID is required"],
-            validate: [
-                {
-                    validator: function (v) {
-                        return /^\d{12}$/.test(v);
-                    },
-                    message: "Aadhar ID must be exactly 12 digits"
-                }
-            ]
-        }, ed: false
+        required: false
+    },
+    aadharId: {
+        type: String,
+        trim: true,
+        required: [true, "Aadhar ID is required"],
+        validate: [
+            {
+                validator: function (v) {
+                    return /^\d{12}$/.test(v);
+                },
+                message: "Aadhar ID must be exactly 12 digits"
+            }
+        ]
     },
     username: {
         type: String,
@@ -48,11 +49,11 @@ const baseEventFields = {
     },
     phoneNumber: {
         type: String,
-        required: false,
+        required: [true, "Phone number is required"],
         trim: true,
         validate: {
             validator: function (v) {
-                return !v || /^\d{10}$/.test(v);
+                return /^\d{10}$/.test(v);
             },
             message: "Phone number must be 10 digits"
         }
