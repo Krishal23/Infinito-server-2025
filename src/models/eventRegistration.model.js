@@ -5,8 +5,19 @@ const baseEventFields = {
     userId: {
         type: mongoose.Schema.Types.ObjectId,
         ref: "User",
-        required: false,
-        index: true
+        aadharId: {
+            type: String,
+            trim: true,
+            required: [true, "Aadhar ID is required"],
+            validate: [
+                {
+                    validator: function (v) {
+                        return /^\d{12}$/.test(v);
+                    },
+                    message: "Aadhar ID must be exactly 12 digits"
+                }
+            ]
+        }, ed: false
     },
     username: {
         type: String,
@@ -138,8 +149,8 @@ const teamMemberSchema = new mongoose.Schema({
         trim: true,
         required: [true, "Phone number is required"],
         validate: {
-            validator: function (v) { return !v || /^\d{10}$/.test(v); },
-            message: "Member phone number must be 10 digits"
+            validator: function (v) { return /^\d{10}$/.test(v); },
+            message: "Phone number must be exactly 10 digits"
         }
     },
     collegeName: { type: String, trim: true },
@@ -180,52 +191,65 @@ const teamSchema = new mongoose.Schema({
     members: {
         type: [teamMemberSchema],
         default: [],
-        validate: {
-            validator: function (arr) {
-                if (!Array.isArray(arr)) return false;
+        validate: [
+            {
+                validator: function (arr) {
+                    if (!Array.isArray(arr)) return false;
 
-                // Get the event type from the model name
-                const modelName = this.constructor.modelName?.toLowerCase() || '';
+                    const eventLimits = {
+                        basketballregistration: { min: 5, max: 12 },
+                        cricketregistration: { min: 11, max: 16 },
+                        footballregistration: { min: 11, max: 16 },
+                        kabaddiregistration: { min: 7, max: 10 },
+                        volleyballregistration: { min: 6, max: 12 },
+                        chessregistration: { min: 1, max: 2 },
+                        badmintonregistration: { min: 1, max: 2 },
+                        tabletennisregistration: { min: 1, max: 2 },
+                        lawntennisregistration: { min: 1, max: 2 },
+                        squashregistration: { min: 1, max: 1 },
+                        weightliftingregistration: { min: 1, max: 1 },
+                        athleticsregistration: { min: 1, max: 1 }
+                    };
 
-                // Define minimum and maximum players for each event
-                const eventLimits = {
-                    basketballregistration: { min: 5, max: 12 },
-                    cricketregistration: { min: 11, max: 16 },
-                    footballregistration: { min: 11, max: 16 },
-                    kabaddiregistration: { min: 7, max: 10 },
-                    volleyballregistration: { min: 6, max: 12 },
-                    chessregistration: { min: 1, max: 2 },
-                    badmintonregistration: { min: 1, max: 2 },
-                    tableTennisregistration: { min: 1, max: 2 },
-                    lawnTennisregistration: { min: 1, max: 2 },
-                    squashregistration: { min: 1, max: 1 },
-                    weightliftingregistration: { min: 1, max: 1 },
-                    athleticsregistration: { min: 1, max: 1 }
-                };
+                    // Get model name from parent document
+                    let modelName;
+                    try {
+                        modelName = this.ownerDocument().constructor.modelName.toLowerCase();
+                    } catch (e) {
+                        modelName = '';
+                    }
 
-                const limits = eventLimits[modelName] || { min: 1, max: 1 };
-                return arr.length >= limits.min && arr.length <= limits.max;
-            },
-            message: function () {
-                const modelName = this.constructor.modelName?.toLowerCase() || '';
-                const limits = {
-                    basketballregistration: { min: 5, max: 12 },
-                    cricketregistration: { min: 11, max: 16 },
-                    footballregistration: { min: 11, max: 16 },
-                    kabaddiregistration: { min: 7, max: 10 },
-                    volleyballregistration: { min: 6, max: 12 },
-                    chessregistration: { min: 1, max: 2 },
-                    badmintonregistration: { min: 1, max: 2 },
-                    tableTennisregistration: { min: 1, max: 2 },
-                    lawnTennisregistration: { min: 1, max: 2 },
-                    squashregistration: { min: 1, max: 1 },
-                    weightliftingregistration: { min: 1, max: 1 },
-                    athleticsregistration: { min: 1, max: 1 }
-                }[modelName] || { min: 1, max: 1 };
+                    const limits = eventLimits[modelName] || { min: 1, max: 1 };
+                    return arr.length >= limits.min && arr.length <= limits.max;
+                },
+                message: function () {
+                    const eventLimits = {
+                        basketballregistration: { min: 5, max: 12 },
+                        cricketregistration: { min: 11, max: 16 },
+                        footballregistration: { min: 11, max: 16 },
+                        kabaddiregistration: { min: 7, max: 10 },
+                        volleyballregistration: { min: 6, max: 12 },
+                        chessregistration: { min: 1, max: 2 },
+                        badmintonregistration: { min: 1, max: 2 },
+                        tabletennisregistration: { min: 1, max: 2 },
+                        lawntennisregistration: { min: 1, max: 2 },
+                        squashregistration: { min: 1, max: 1 },
+                        weightliftingregistration: { min: 1, max: 1 },
+                        athleticsregistration: { min: 1, max: 1 }
+                    };
 
-                return `Team must have between ${limits.min} and ${limits.max} members`;
+                    let modelName;
+                    try {
+                        modelName = this.ownerDocument().constructor.modelName.toLowerCase();
+                    } catch (e) {
+                        modelName = '';
+                    }
+
+                    const limits = eventLimits[modelName] || { min: 1, max: 1 };
+                    return `Team must have between ${limits.min} and ${limits.max} members`;
+                }
             }
-        }
+        ]
     },
     note: { type: String, trim: true, maxlength: 300 }
 }, { _id: false });
@@ -700,7 +724,7 @@ const squashSchema = new mongoose.Schema({
 
     category: {
         type: String,
-        enum: ["men_singles", "women_singles"],
+        enum: ["men", "women"],
         required: [true, "Category is required"]
     },
 
@@ -896,22 +920,16 @@ const weightLiftingSchema = new mongoose.Schema({
 
     personalBest: {
         squat: Number,
-        benchPress: Number,
+        bench_press: Number,
         deadlift: Number,
         snatch: Number,
-        cleanJerk: Number
+        clean_jerk: Number
     },
 
     experience: {
         type: String,
         enum: ["beginner", "intermediate", "advanced", "professional"],
         required: [true, "Experience level is required"]
-    },
-
-    tShirtSize: {
-        type: String,
-        enum: ["XS", "S", "M", "L", "XL", "XXL"],
-        required: [true, "T-shirt size is required"]
     }
 }, {
     timestamps: true,
