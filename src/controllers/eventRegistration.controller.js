@@ -14,6 +14,7 @@ import {
     TableTennisRegistration,
     VolleyballRegistration,
     WeightLiftingRegistration,
+    CODMRegistration,
     EVENT_MODELS
 } from "../models/eventRegistration.model.js";
 
@@ -114,7 +115,9 @@ const createEventRegistration = (EventModel, eventName) => {
                 registrationData.skillLevel ||= 'beginner';
                 registrationData.playingHand ||= 'right';
                 registrationData.tShirtSize ||= 'M';
-            }
+            } else if (e === 'codm') {
+                registrationData.teamName ||= 'Team ' + (user?.username || 'Unknown');
+            }   
 
             // If leader is registering a team, enrich team block
             if (registrationData.team && typeof registrationData.team === 'object') {
@@ -393,6 +396,19 @@ export const getMyWeightLiftingRegistration = getUserEventRegistration(WeightLif
 export const getAllWeightLiftingRegistrations = getAllEventRegistrations(WeightLiftingRegistration, "Weight Lifting");
 export const updateWeightLiftingRegistrationStatus = updateRegistrationStatus(WeightLiftingRegistration, "Weight Lifting");
 export const cancelWeightLiftingRegistration = cancelEventRegistration(WeightLiftingRegistration, "Weight Lifting");
+
+
+
+//CODM Controllers
+export const registerForCODM = createEventRegistration(CODMRegistration, "CODM");
+export const getMyCODMRegistration = getUserEventRegistration(CODMRegistration, "CODM");
+export const getAllCODMRegistrations = getAllEventRegistrations(CODMRegistration, "CODM");
+export const updateCODMRegistrationStatus = updateRegistrationStatus(CODMRegistration, "CODM");
+export const cancelCODMRegistration = cancelEventRegistration(CODMRegistration, "CODM");
+
+
+
+
 
 // Utility function to get user's all event registrations
 export const getMyAllEventRegistrations = CatchAsyncErrror(async (req, res, next) => {

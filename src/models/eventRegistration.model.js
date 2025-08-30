@@ -941,6 +941,93 @@ const weightLiftingSchema = new mongoose.Schema({
 weightLiftingSchema.index({ userId: 1 }, { unique: true });
 
 
+
+const codmSchema = new mongoose.Schema({
+    ...baseEventFields,
+
+    teamName: {
+        type: String,
+        required: [true, "Team name is required"],
+        trim: true
+    },
+
+    teamLeaderName: {
+        type: String,
+        required: [true, "Team leader name is required"],
+        trim: true
+    },
+
+    teamLeaderRollNo: {
+        type: String,
+        required: [true, "Team leader roll number is required"],
+        trim: true
+    },
+
+    teamCaptainNumber: {
+        type: String,
+        required: [true, "Team captain number is required"],
+        trim: true,
+        validate: {
+            validator: function (v) {
+                return /^\d{10}$/.test(v);
+            },
+            message: "Team captain number must be 10 digits"
+        }
+    },
+
+    players: [{
+        name: {
+            type: String,
+            required: [true, "Player name is required"],
+            trim: true
+        },
+        rollNumber: {
+            type: String,
+            required: [true, "Player roll number is required"],
+            trim: true
+        },
+        ign: {
+            type: String,
+            required: [true, "Player IGN is required"],
+            trim: true
+        }
+    }],
+
+    collegeAddress: {
+        type: String,
+        required: [true, "College address is required"],
+        trim: true
+    },
+
+    queries: {
+        type: String,
+        trim: true,
+        maxlength: 500
+    },
+
+    // Optional team block for consistency with other team events
+    team: teamSchema
+}, {
+    timestamps: true,
+    toJSON: { virtuals: true },
+    toObject: { virtuals: true }
+});
+
+// Validate that there are exactly 5 players
+codmSchema.pre('validate', function(next) {
+    if (this.players && this.players.length !== 5) {
+        this.invalidate('players', 'CODM team must have exactly 5 players');
+    }
+    next();
+});
+codmSchema.index({ userId: 1 }, { unique: true });
+
+
+
+
+
+
+
 export const AthleticsRegistration = mongoose.model("AthleticsRegistration", athleticsSchema);
 export const BadmintonRegistration = mongoose.model("BadmintonRegistration", badmintonSchema);
 export const BasketballRegistration = mongoose.model("BasketballRegistration", basketballSchema);
@@ -953,7 +1040,7 @@ export const SquashRegistration = mongoose.model("SquashRegistration", squashSch
 export const TableTennisRegistration = mongoose.model("TableTennisRegistration", tableTennisSchema);
 export const VolleyballRegistration = mongoose.model("VolleyballRegistration", volleyballSchema);
 export const WeightLiftingRegistration = mongoose.model("WeightLiftingRegistration", weightLiftingSchema);
-
+export const CODMRegistration = mongoose.model("CODMRegistration", codmSchema);
 
 export const EVENT_MODELS = {
     athletics: AthleticsRegistration,
@@ -967,5 +1054,6 @@ export const EVENT_MODELS = {
     squash: SquashRegistration,
     table_tennis: TableTennisRegistration,
     volleyball: VolleyballRegistration,
-    weight_lifting: WeightLiftingRegistration
+    weight_lifting: WeightLiftingRegistration,
+    codm: CODMRegistration
 };

@@ -85,6 +85,14 @@ import {
   updateWeightLiftingRegistrationStatus,
   cancelWeightLiftingRegistration,
 
+
+  // CODM
+  registerForCODM,
+  getMyCODMRegistration,
+  getAllCODMRegistrations,
+  updateCODMRegistrationStatus,
+  cancelCODMRegistration,
+
   // Utility functions
   getMyAllEventRegistrations,
   getEventRegistrationStats
@@ -220,9 +228,24 @@ router.post("/weight-lifting/register", registerForWeightLifting);
 router.get("/weight-lifting/my-registration", authenticateUser, getMyWeightLiftingRegistration);
 router.delete("/weight-lifting/cancel", authenticateUser, cancelWeightLiftingRegistration);
 
+
 // Admin/Moderator routes for Weight Lifting
 router.get("/weight-lifting/all", authenticateUser, authorizeRoles("admin", "moderator"), getAllWeightLiftingRegistrations);
 router.put("/weight-lifting/:registrationId/status", authenticateUser, authorizeRoles("admin", "moderator"), updateWeightLiftingRegistrationStatus);
+
+
+// =============================================================================
+// CODM ROUTES
+// =============================================================================
+router.post("/codm/register", registerForCODM);
+router.get("/codm/my-registration", authenticateUser, getMyCODMRegistration);
+router.delete("/codm/cancel", authenticateUser, cancelCODMRegistration);
+
+// Admin/Moderator routes for CODM
+router.get("/codm/all", authenticateUser, authorizeRoles("admin", "moderator"), getAllCODMRegistrations);
+router.put("/codm/:registrationId/status", authenticateUser, authorizeRoles("admin", "moderator"), updateCODMRegistrationStatus);
+
+
 
 // =============================================================================
 // UTILITY ROUTES
