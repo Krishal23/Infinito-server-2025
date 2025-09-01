@@ -176,6 +176,8 @@ function createSchema(fields, { uniqueByUser = true, esports = false } = {}) {
 
 // 1. Athletics
 const athleticsSchema = createSchema({
+  userId: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
+
   category: { type: String, enum: ["men", "women"], required: true },
   individualEvents: { type: [String], default: [] },
   relayTeams: [teamSchema],
@@ -183,6 +185,8 @@ const athleticsSchema = createSchema({
 
 // 2. Badminton
 const BadmintonRegistrationSchema = new mongoose.Schema({
+  userId: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
+
   captain: { type: teamMemberSchema, required: true },
   viceCaptain: { type: teamMemberSchema, required: true },
   players: { type: [teamMemberSchema], validate: v => v.length === 3 },
@@ -208,6 +212,8 @@ const BadmintonRegistrationSchema = new mongoose.Schema({
 
 // 3. Basketball
 const BasketballRegistrationSchema = new mongoose.Schema({
+  userId: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
+
   category: { type: String, enum: ["Men", "Women"], required: true },
   
   collegeName: { type: String},
@@ -245,6 +251,8 @@ const BasketballRegistrationSchema = new mongoose.Schema({
 
 // 2. chess
 const chessSchema = new mongoose.Schema({
+  userId: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
+
   captain: { type: teamMemberSchema, required: true },
   players: { type: [teamMemberSchema]},
   collegeName: { type: String },
@@ -270,6 +278,7 @@ const chessSchema = new mongoose.Schema({
 // 5. Cricket
 const CricketRegistrationSchema = new mongoose.Schema({
   // category: { type: String, enum: ["Men", "Women"], required: true },
+  userId: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
 
   collegeName: { type: String },
   collegeAddress: { type: String },
@@ -304,6 +313,8 @@ const CricketRegistrationSchema = new mongoose.Schema({
 
 const FootballRegistrationSchema = new mongoose.Schema({
   // category: { type: String, enum: ["Men", "Women"], required: true },
+  userId: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
+
 
   collegeName: { type: String },
   collegeAddress: { type: String },
@@ -341,6 +352,8 @@ const FootballRegistrationSchema = new mongoose.Schema({
 
 const KabaddiRegistrationSchema = new mongoose.Schema({
   category: { type: String, enum: ["Men", "Women"], required: true },
+  userId: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
+
   
   collegeName: { type: String},
   collegeAddress: { type: String },
@@ -377,6 +390,8 @@ const KabaddiRegistrationSchema = new mongoose.Schema({
 // 8. Lawn Tennis
 const lawnTennisSchema = new mongoose.Schema({
   category: { type: String, enum: ["Men", "Women"], required: true },
+  userId: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
+
   
   collegeName: { type: String},
   collegeAddress: { type: String },
@@ -405,6 +420,7 @@ const lawnTennisSchema = new mongoose.Schema({
 
 const squashSchema = new mongoose.Schema({
   category: { type: String, enum: ["Men", "Women"], required: true },
+  userId: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
   
   collegeName: { type: String},
   collegeAddress: { type: String },
@@ -434,6 +450,8 @@ const squashSchema = new mongoose.Schema({
 
 const tableTennisSchema = new mongoose.Schema({
   category: { type: String, enum: ["Men", "Women"], required: true },
+  userId: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
+
   
   collegeName: { type: String},
   collegeAddress: { type: String },
@@ -467,6 +485,8 @@ const tableTennisSchema = new mongoose.Schema({
 
 const volleyballSchema = new mongoose.Schema({
   category: { type: String, enum: ["Men", "Women"], required: true },
+  userId: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
+
   
   collegeName: { type: String},
   collegeAddress: { type: String },
@@ -503,6 +523,7 @@ const volleyballSchema = new mongoose.Schema({
 
 const weightLiftingSchema = new mongoose.Schema({
   // category: { type: String, enum: ["Men", "Women"], required: true },
+  userId: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
   
   collegeName: { type: String},
   collegeAddress: { type: String },
@@ -529,7 +550,7 @@ const weightLiftingSchema = new mongoose.Schema({
 
 const powerLiftingSchema = new mongoose.Schema({
   // category: { type: String, enum: ["Men", "Women"], required: true },
-  
+  userId: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
   collegeName: { type: String},
   collegeAddress: { type: String },
   players: { 
