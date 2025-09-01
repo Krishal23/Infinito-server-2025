@@ -1,1059 +1,603 @@
 import mongoose from "mongoose";
 
+// -------------------- Validation Helpers --------------------
+const validateAadhar = v => /^\d{12}$/.test(v);
+const validatePhone = v => /^\d{10}$/.test(v);
 
+// Centralized team size rules
+const TEAM_LIMITS = {
+    basketball: { min: 5, max: 12 },
+    cricket: { min: 11, max: 16 },
+    football: { min: 11, max: 16 },
+    kabaddi: { min: 7, max: 10 },
+    volleyball: { min: 6, max: 12 },
+    chess: { min: 1, max: 2 },
+    badminton: { min: 1, max: 2 },
+    table_tennis: { min: 1, max: 2 },
+    lawn_tennis: { min: 1, max: 2 },
+    squash: { min: 1, max: 1 },
+    weight_lifting: { min: 1, max: 1 },
+    athletics: { min: 1, max: 1 }
+  };
+
+// -------------------- Common Base Fields --------------------
 const baseEventFields = {
-    userId: {
-        type: mongoose.Schema.Types.ObjectId,
-        ref: "User",
-        required: false
-    },
+    userId: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
     aadharId: {
-        type: String,
-        trim: true,
-        required: [true, "Aadhar ID is required"],
-        validate: [
-            {
-                validator: function (v) {
-                    return /^\d{12}$/.test(v);
-                },
-                message: "Aadhar ID must be exactly 12 digits"
-            }
-        ]
+      type: String,
+      trim: true,
+      required: [true, "Aadhar ID is required"],
+      // validate: { validator: validateAadhar, message: "Aadhar ID must be 12 digits" }
     },
-    username: {
-        type: String,
-        required: false,
-        trim: true,
-        lowercase: true
-    },
-    email: {
-        type: String,
-        required: [true, "Email is required"],
-        lowercase: true,
-        trim: true
-    },
-    fullname: {
-        type: String,
-        required: [true, "Full name is required"],
-        trim: true
-    },
-    collegeName: {
-        type: String,
-        required: [true, "College name is required"],
-        trim: true
-    },
-    rollNo: {
-        type: String,
-        required: false,
-        trim: true
-    },
+    leadName: { type: String,required:true,  trim: true },
+    email: { type: String, required: true, trim: true, lowercase: true },
     phoneNumber: {
-        type: String,
-        required: [true, "Phone number is required"],
-        trim: true,
-        validate: {
-            validator: function (v) {
-                return /^\d{10}$/.test(v);
-            },
-            message: "Phone number must be 10 digits"
-        }
+      type: String,
+      required: true,
+      trim: true,
+      // validate: { validator: validatePhone, message: "Phone number must be 10 digits" }
     },
 
-    emergencyContact: {
-        name: {
-            type: String,
-            required: false,
-            trim: true
-        },
-        relation: {
-            type: String,
-            required: false,
-            trim: true
-        },
-        phoneNumber: {
-            type: String,
-            required: false,
-            trim: true,
-            validate: {
-                validator: function (v) {
-                    return !v || /^\d{10}$/.test(v);
-                },
-                message: "Emergency contact phone must be 10 digits"
-            }
-        }
+    //for lead optional
+    collegeDetails:{
+      collegeName: { type: String, trim: true },
+      collegeAddress: { type: String, trim: true },
+      rollNo: { type: String, trim: true },
     },
+  
+    // Registration meta
+    registrationDate: { type: Date, default: Date.now },
+  
+    // Payment quick refs
+    paymentStatus: { type: String, enum: ["pending","paid","failed","refunded"], default: "pending" },
+    paymentOrderId: { type: String, trim: true },
+    paymentId:      { type: String, trim: true },
+    paymentSignature:{ type: String, trim: true },
 
-    medicalInfo: {
-        allergies: {
-            type: String,
-            trim: true,
-            default: "None"
-        },
-        medications: {
-            type: String,
-            trim: true,
-            default: "None"
-        },
-        medicalConditions: {
-            type: String,
-            trim: true,
-            default: "None"
-        },
-        bloodGroup: {
-            type: String,
-            enum: ["A+", "A-", "B+", "B-", "O+", "O-", "AB+", "AB-", "Unknown"],
-            default: "Unknown"
-        }
-    },
+  
+  
+    // Reference to central Transaction table
+    transaction: { type: mongoose.Schema.Types.ObjectId, ref: "Transaction" },
+  
+    registrationFee: { type: Number, default: 0 },
+  };
+  
 
-    registrationDate: {
-        type: Date,
-        default: Date.now
-    },
-    status: {
-        type: String,
-        enum: ["pending", "confirmed", "cancelled", "waitlisted"],
-        default: "pending"
-    },
-    paymentStatus: {
-        type: String,
-        enum: ["pending", "paid", "failed", "refunded"],
-        default: "pending"
-    },
-    registrationFee: {
-        type: Number,
-        default: 0
-    },
-
-    parentalConsent: {
-        type: Boolean,
-        required: false
-    },
-    liabilityWaiver: {
-        type: Boolean,
-        required: false
-    },
-
-    additionalNotes: {
-        type: String,
-        trim: true,
-        maxlength: 500
-    }
-};
-
-// Shared team sub-schemas (used for team sports)
+// -------------------- Team Member Schema --------------------
 const teamMemberSchema = new mongoose.Schema({
-    fullname: { type: String, trim: true, required: [true, "Member full name is required"] },
-    email: { type: String, trim: true, lowercase: true, required: [true, "Email is required"] },
-    phoneNumber: {
-        type: String,
-        trim: true,
-        required: [true, "Phone number is required"],
-        validate: {
-            validator: function (v) { return /^\d{10}$/.test(v); },
-            message: "Phone number must be exactly 10 digits"
-        }
-    },
-    collegeName: { type: String, trim: true },
-    collegeId: { type: String, trim: true },
-    aadharId: {
-        type: String,
-        trim: true,
-        required: [true, "Aadhar ID is required"],
-        validate: {
-            validator: function (v) {
-                return /^\d{12}$/.test(v);
-            },
-            message: "Aadhar ID must be 12 digits"
-        }
-    },
-    rollNo: { type: String, trim: true },
-    position: { type: String, trim: true }, // e.g., defender, setter, etc.
-    role: {
-        type: String,
-        trim: true,
-        required: [true, "Role is required"],
-        enum: ["Captain", "Vice Captain", "Player"]
-    },
-    rating: { type: String, trim: true }, // For chess, badminton, etc.
-    height: { type: String, trim: true }, // For basketball, volleyball
-    weight: { type: String, trim: true }, // For weightlifting, kabaddi
-    playingStyle: { type: String, trim: true }, // For cricket, table tennis
-    skillLevel: {
-        type: String,
-        enum: ["beginner", "intermediate", "advanced", "professional"]
-    }
+  fullname: { type: String,  trim: true },
+  email: { type: String,  trim: true, lowercase: true },
+  phoneNumber: { type: String, trim: true },
+  aadharId: { type: String,  trim: true },
+  rollNo: String,
+  position: String,
+  role: { type: String },
+  skillLevel: { type: String }
 }, { _id: false });
 
+// -------------------- Team Schema --------------------
 const teamSchema = new mongoose.Schema({
-    teamName: { type: String, trim: true },
-    leaderId: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
-    teamSize: { type: Number, min: 1 },
-    members: {
-        type: [teamMemberSchema],
-        default: [],
-        validate: [
-            {
-                validator: function (arr) {
-                    if (!Array.isArray(arr)) return false;
-
-                    const eventLimits = {
-                        basketballregistration: { min: 5, max: 12 },
-                        cricketregistration: { min: 11, max: 16 },
-                        footballregistration: { min: 11, max: 16 },
-                        kabaddiregistration: { min: 7, max: 10 },
-                        volleyballregistration: { min: 6, max: 12 },
-                        chessregistration: { min: 1, max: 2 },
-                        badmintonregistration: { min: 1, max: 2 },
-                        tabletennisregistration: { min: 1, max: 2 },
-                        lawntennisregistration: { min: 1, max: 2 },
-                        squashregistration: { min: 1, max: 1 },
-                        weightliftingregistration: { min: 1, max: 1 },
-                        athleticsregistration: { min: 1, max: 1 }
-                    };
-
-                    // Get model name from parent document
-                    let modelName;
-                    try {
-                        modelName = this.ownerDocument().constructor.modelName.toLowerCase();
-                    } catch (e) {
-                        modelName = '';
-                    }
-
-                    const limits = eventLimits[modelName] || { min: 1, max: 1 };
-                    return arr.length >= limits.min && arr.length <= limits.max;
-                },
-                message: function () {
-                    const eventLimits = {
-                        basketballregistration: { min: 5, max: 12 },
-                        cricketregistration: { min: 11, max: 16 },
-                        footballregistration: { min: 11, max: 16 },
-                        kabaddiregistration: { min: 7, max: 10 },
-                        volleyballregistration: { min: 6, max: 12 },
-                        chessregistration: { min: 1, max: 2 },
-                        badmintonregistration: { min: 1, max: 2 },
-                        tabletennisregistration: { min: 1, max: 2 },
-                        lawntennisregistration: { min: 1, max: 2 },
-                        squashregistration: { min: 1, max: 1 },
-                        weightliftingregistration: { min: 1, max: 1 },
-                        athleticsregistration: { min: 1, max: 1 }
-                    };
-
-                    let modelName;
-                    try {
-                        modelName = this.ownerDocument().constructor.modelName.toLowerCase();
-                    } catch (e) {
-                        modelName = '';
-                    }
-
-                    const limits = eventLimits[modelName] || { min: 1, max: 1 };
-                    return `Team must have between ${limits.min} and ${limits.max} members`;
-                }
-            }
-        ]
-    },
-    note: { type: String, trim: true, maxlength: 300 }
+  teamName: String,
+  leaderId: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
+  members: [teamMemberSchema],
 }, { _id: false });
 
-// 1. Athletics Registration Model
-const athleticsSchema = new mongoose.Schema({
-    ...baseEventFields,
-
-    events: [{
-        type: String,
-        enum: [
-            "100m", "200m", "400m", "800m", "1500m", "3000m", "5000m", "10000m",
-            "110m_hurdles", "400m_hurdles", "3000m_steeplechase",
-            "high_jump", "pole_vault", "long_jump", "triple_jump",
-            "shot_put", "discus_throw", "hammer_throw", "javelin_throw",
-            "decathlon", "heptathlon", "4x100m_relay", "4x400m_relay"
-        ],
-        required: [true, "At least one event must be selected"]
-    }],
-
-    category: {
-        type: String,
-        enum: ["men", "women"],
-        required: [true, "Category is required"]
+// -------------------- Schema Factory --------------------
+function createSchema(fields, { uniqueByUser = true, esports = false } = {}) {
+    let schemaFields = { ...baseEventFields, ...fields };
+  
+    // For esports, drop redundant base fields
+    if (esports) {
+      delete schemaFields.leadName;
+      delete schemaFields.email;
+      delete schemaFields.phoneNumber;
+      delete schemaFields.aadharId;
+      delete schemaFields.collegeName;
+      delete schemaFields.collegeDetails;  
+      delete schemaFields.coachDetails;     
+    }
+  
+    const schema = new mongoose.Schema(schemaFields, {
+      timestamps: true,
+      toJSON: { virtuals: true },
+      toObject: { virtuals: true }
+    });
+  
+    if (uniqueByUser) schema.index({ userId: 1 }, { unique: true });
+    return schema;
+  }
+  
+  // -------------------- Esports Player Schema --------------------
+  const esportsPlayerSchema = new mongoose.Schema({
+    name: { type: String, required: true, trim: true },
+    email: { type: String, required: true, trim: true, lowercase: true },
+    contactNumber: { 
+      type: String, 
+      // required: true, 
+      // validate: { validator: validatePhone, message: "Phone must be 10 digits" }
     },
-
-    // experience: {
-    //     type: String,
-    //     enum: ["beginner", "intermediate", "advanced", "professional"],
-    //     required: [true, "Experience level is required"]
-    // },
-
-    // personalBest: {
-    //     type: String,
-    //     trim: true,
-    //     maxlength: 200
-    // },
-
-    coachName: {
-        type: String,
-        trim: true
+    aadharId: { 
+      type: String, 
+      required: true, 
+      trim: true, 
+      // validate: { validator: validateAadhar, message: "Aadhar ID must be 12 digits" }
     },
+    ign: { type: String, required: true, trim: true }
+  }, { _id: false });
+  
 
-    // tShirtSize: {
-    //     type: String,
-    //     enum: ["XS", "S", "M", "L", "XL", "XXL"],
-    //     required: [true, "T-shirt size is required"]
-    // }
-}, {
-    timestamps: true,
-    toJSON: { virtuals: true },
-    toObject: { virtuals: true }
+
+  // -------------------- Esports Schema Factory --------------------
+  function createEsportsSchema(gameName) {
+    const schema = createSchema({
+      teamName: { type: String, required: true, trim: true },
+      teamLeader: {
+        name: { type: String, required: true, trim: true },
+        email: { type: String, required: true, trim: true, lowercase: true },
+        contactNumber: { 
+          type: String, 
+          required: true, 
+          // validate: { validator: validatePhone, message: "Phone must be 10 digits" }
+        },
+        aadharId: { 
+          type: String, 
+          required: true, 
+          trim: true, 
+          // validate: { validator: validateAadhar, message: "Aadhar ID must be 12 digits" }
+        },
+        ign: { type: String, required: true, trim: true },
+        collegeId: { type: String, trim: true },
+        collegeName: { type: String, trim: true },
+        collegeAddress: { type: String, trim: true }
+      },
+  
+      players: {
+        type: [esportsPlayerSchema],
+        // validate: {
+        //   validator: arr => Array.isArray(arr) && arr.length === 4,
+        //   message: "Exactly 4 players required besides the leader"
+        // }
+      },
+  
+      queries: { type: String, maxlength: 500 }
+    }, { esports: true });
+  
+    // schema.pre("validate", function(next) {
+    //   if (!this.players || this.players.length !== 4) {
+    //     this.invalidate("players", `${gameName} team must have exactly 4 players (excluding leader)`);
+    //   }
+    //   next();
+    // });
+  
+    return schema;
+  }
+  
+// -------------------- Event Schemas --------------------
+
+// 1. Athletics
+const athleticsSchema = createSchema({
+  category: { type: String, enum: ["men", "women"], required: true },
+  individualEvents: { type: [String], default: [] },
+  relayTeams: [teamSchema],
 });
 
-athleticsSchema.index({ userId: 1 }, { unique: true });
+// 2. Badminton
+const BadmintonRegistrationSchema = new mongoose.Schema({
+  captain: { type: teamMemberSchema, required: true },
+  viceCaptain: { type: teamMemberSchema, required: true },
+  players: { type: [teamMemberSchema], validate: v => v.length === 3 },
+  collegeName: { type: String },
+  collegeAddress: { type: String },
+  coach: {
+    name: { type: String},
+    email: { type: String},
+    phoneNumber: { type: String}
+  },
+  category: { type: String, enum: ["Men", "Women"], required: true },
+  
+  // Payment quick refs
+  paymentStatus: { type: String, enum: ["pending","paid","failed","refunded"], default: "pending" },
+  paymentOrderId: { type: String, trim: true },
+  paymentId:      { type: String, trim: true },
+  paymentSignature:{ type: String, trim: true },
 
-// 2. Badminton Registration Model
-const badmintonSchema = new mongoose.Schema({
-    ...baseEventFields,
+  // Reference to central Transaction table
+  transaction: { type: mongoose.Schema.Types.ObjectId, ref: "Transaction" },
+  registrationDate: { type: Date, default: Date.now },
+}, { timestamps: true });
 
-    category: {
-        type: String,
-        enum: ["men_singles", "women_singles", "men_doubles", "women_doubles", "mixed_doubles"],
-        required: false
-    },
+// 3. Basketball
+const BasketballRegistrationSchema = new mongoose.Schema({
+  category: { type: String, enum: ["Men", "Women"], required: true },
+  
+  collegeName: { type: String},
+  collegeAddress: { type: String },
 
-    partnerDetails: {
-        name: String,
-        email: String,
-        phoneNumber: String,
-        collegeName: String,
-        rollNo: String
-    },
+  captain: { type: teamMemberSchema, required: true },
+  viceCaptain: { type: teamMemberSchema, required: true },
 
-    skillLevel: {
-        type: String,
-        enum: ["beginner", "intermediate", "advanced", "professional"],
-        required: false
-    },
+  players: { 
+    type: [teamMemberSchema], 
+  },
 
-    playingHand: {
-        type: String,
-        enum: ["right", "left", "ambidextrous"],
-        required: false
-    },
+  substitutes: { 
+    type: [teamMemberSchema], 
+  },
 
-    // racketBrand: {
-    //     type: String,
-    //     trim: true
-    // },
+  coach: {
+    name: { type: String},
+    email: { type: String },
+    phoneNumber: { type: String }
+  },
 
-    previousTournaments: {
-        type: String,
-        trim: true,
-        maxlength: 300
-    },
+  // Payment quick refs
+  paymentStatus: { type: String, enum: ["pending","paid","failed","refunded"], default: "pending" },
+  paymentOrderId: { type: String, trim: true },
+  paymentId:      { type: String, trim: true },
+  paymentSignature:{ type: String, trim: true },
 
-    // tShirtSize: {
-    //     type: String,
-    //     enum: ["XS", "S", "M", "L", "XL", "XXL"],
-    //     required: [true, "T-shirt size is required"]
-    // }
-}, {
-    timestamps: true,
-    toJSON: { virtuals: true },
-    toObject: { virtuals: true }
-});
+  // Reference to central Transaction table
+  transaction: { type: mongoose.Schema.Types.ObjectId, ref: "Transaction" },
+  registrationDate: { type: Date, default: Date.now },
+}, { timestamps: true });
 
-badmintonSchema.index({ userId: 1 }, { unique: true });
 
-// 3. Basketball Registration Model
-const basketballSchema = new mongoose.Schema({
-    ...baseEventFields,
 
-    category: {
-        type: String,
-        enum: ["men", "women"],
-        required: [true, "Category is required"]
-    },
-
-    position: {
-        type: String,
-        enum: ["point_guard", "shooting_guard", "small_forward", "power_forward", "center", "any"],
-        required: [true, "Position is required"]
-    },
-
-    height: {
-        type: String,
-        required: [true, "Height is required"]
-    },
-
-    experience: {
-        type: String,
-        enum: ["beginner", "intermediate", "advanced", "professional"],
-        required: [true, "Experience level is required"]
-    },
-
-    // teamPreference: {
-    //     type: String,
-    //     enum: ["create_new", "join_existing", "no_preference"],
-    //     required: [true, "Team preference is required"]
-    // },
-
-    teamName: {
-        type: String,
-        trim: true
-    },
-
-    // jerseySize: {
-    //     type: String,
-    //     enum: ["XS", "S", "M", "L", "XL", "XXL"],
-    //     required: [true, "Jersey size is required"]
-    // },
-
-    // shoeSize: {
-    //     type: String,
-    //     required: [true, "Shoe size is required"]
-    // },
-
-    // Optional team block
-    team: teamSchema
-}, {
-    timestamps: true,
-    toJSON: { virtuals: true },
-    toObject: { virtuals: true }
-});
-
-basketballSchema.index({ userId: 1 }, { unique: true });
-
-// 4. Chess Registration Model
+// 2. chess
 const chessSchema = new mongoose.Schema({
-    ...baseEventFields,
+  captain: { type: teamMemberSchema, required: true },
+  players: { type: [teamMemberSchema]},
+  collegeName: { type: String },
+  collegeAddress: { type: String },
+  coach: {
+    name: { type: String},
+    email: { type: String},
+    phoneNumber: { type: String}
+  },
+  
+  // Payment quick refs
+  paymentStatus: { type: String, enum: ["pending","paid","failed","refunded"], default: "pending" },
+  paymentOrderId: { type: String, trim: true },
+  paymentId:      { type: String, trim: true },
+  paymentSignature:{ type: String, trim: true },
 
-    category: {
-        type: String,
-        enum: ["open", "women", "under_18", "under_16"],
-        required: [true, "Category is required"]
-    },
+  // Reference to central Transaction table
+  transaction: { type: mongoose.Schema.Types.ObjectId, ref: "Transaction" },
+  registrationDate: { type: Date, default: Date.now },
+}, { timestamps: true });
 
-    fideRating: {
-        type: Number,
-        min: 0,
-        max: 3000
-    },
 
-    onlineRatings: {
-        chesscom: {
-            username: String,
-            rating: Number
-        },
-        lichess: {
-            username: String,
-            rating: Number
-        }
-    },
+// 5. Cricket
+const CricketRegistrationSchema = new mongoose.Schema({
+  // category: { type: String, enum: ["Men", "Women"], required: true },
 
-    experience: {
-        type: String,
-        enum: ["beginner", "club_player", "tournament_player", "expert", "master"],
-        required: [true, "Experience level is required"]
-    },
+  collegeName: { type: String },
+  collegeAddress: { type: String },
 
-    preferredTimeControl: {
-        type: String,
-        enum: ["blitz", "rapid", "classical"],
-        required: [true, "Preferred time control is required"]
-    },
+  captain: { type: teamMemberSchema, required: true },
+  viceCaptain: { type: teamMemberSchema, required: true },
 
-    previousTournaments: {
-        type: String,
-        trim: true,
-        maxlength: 400
-    },
+  players: {
+    type: [teamMemberSchema],
+    required: true,
+  },
 
-    // tShirtSize: {
-    //     type: String,
-    //     enum: ["XS", "S", "M", "L", "XL", "XXL"],
-    //     required: [true, "T-shirt size is required"]
-    // }
-}, {
-    timestamps: true,
-    toJSON: { virtuals: true },
-    toObject: { virtuals: true }
-});
+  coach: {
+    name: { type: String },
+    email: { type: String },
+    phoneNumber: { type: String },
+    aadharId: { type: String }
+  },
 
-chessSchema.index({ userId: 1 }, { unique: true });
+  // Payment quick refs
+  paymentStatus: { type: String, enum: ["pending","paid","failed","refunded"], default: "pending" },
+  paymentOrderId: { type: String, trim: true },
+  paymentId: { type: String, trim: true },
+  paymentSignature: { type: String, trim: true },
 
-// 5. Cricket Registration Model
-const cricketSchema = new mongoose.Schema({
-    ...baseEventFields,
+  // Reference to central Transaction table
+  transaction: { type: mongoose.Schema.Types.ObjectId, ref: "Transaction" },
+  registrationDate: { type: Date, default: Date.now },
+}, { timestamps: true });
 
-    category: {
-        type: String,
-        enum: ["men", "women"],
-        required: [true, "Category is required"]
-    },
 
-    role: {
-        type: String,
-        enum: ["batsman", "bowler", "wicket_keeper", "all_rounder"],
-        required: [true, "Playing role is required"]
-    },
 
-    battingStyle: {
-        type: String,
-        enum: ["right_handed", "left_handed"]
-    },
+const FootballRegistrationSchema = new mongoose.Schema({
+  // category: { type: String, enum: ["Men", "Women"], required: true },
 
-    // bowlingStyle: {
-    //     type: String,
-    //     enum: ["right_arm_fast", "left_arm_fast", "right_arm_medium", "left_arm_medium",
-    //         "right_arm_spin", "left_arm_spin", "leg_spin", "off_spin"]
-    // },
+  collegeName: { type: String },
+  collegeAddress: { type: String },
 
-    // teamPreference: {
-    //     type: String,
-    //     enum: ["create_new", "join_existing", "no_preference"],
-    //     required: [true, "Team preference is required"]
-    // },
+  captain: { type: teamMemberSchema, required: true },
+  viceCaptain: { type: teamMemberSchema, required: true },
 
-    teamName: {
-        type: String,
-        trim: true
-    },
+  players: {
+    type: [teamMemberSchema],
+    required: true,
+  },
 
-    // jerseySize: {
-    //     type: String,
-    //     enum: ["XS", "S", "M", "L", "XL", "XXL"],
-    //     required: [true, "Jersey size is required"]
-    // },
+  coach: {
+    name: { type: String },
+    email: { type: String },
+    phoneNumber: { type: String },
+    aadharId: { type: String }
+  },
 
-    // experience: {
-    //     type: String,
-    //     enum: ["beginner", "intermediate", "advanced", "professional"],
-    //     required: [true, "Experience level is required"]
-    // },
+  // Payment quick refs
+  paymentStatus: { type: String, enum: ["pending","paid","failed","refunded"], default: "pending" },
+  paymentOrderId: { type: String, trim: true },
+  paymentId: { type: String, trim: true },
+  paymentSignature: { type: String, trim: true },
 
-    // Optional team block
-    team: teamSchema
-}, {
-    timestamps: true,
-    toJSON: { virtuals: true },
-    toObject: { virtuals: true }
-});
+  // Reference to central Transaction table
+  transaction: { type: mongoose.Schema.Types.ObjectId, ref: "Transaction" },
+  registrationDate: { type: Date, default: Date.now },
+}, { timestamps: true });
 
-cricketSchema.index({ userId: 1 }, { unique: true });
 
-// 6. Football Registration Model
-const footballSchema = new mongoose.Schema({
-    ...baseEventFields,
 
-    category: {
-        type: String,
-        enum: ["men", "women"],
-        required: [true, "Category is required"]
-    },
 
-    position: {
-        type: String,
-        enum: ["goalkeeper", "defender", "midfielder", "forward", "any"],
-        required: [true, "Position is required"]
-    },
+// 7. Kabaddi
 
-    // preferredFoot: {
-    //     type: String,
-    //     enum: ["right", "left", "both"],
-    //     required: [true, "Preferred foot is required"]
-    // },
+const KabaddiRegistrationSchema = new mongoose.Schema({
+  category: { type: String, enum: ["Men", "Women"], required: true },
+  
+  collegeName: { type: String},
+  collegeAddress: { type: String },
 
-    // teamPreference: {
-    //     type: String,
-    //     enum: ["create_new", "join_existing", "no_preference"],
-    //     required: [true, "Team preference is required"]
-    // },
+  captain: { type: teamMemberSchema, required: true },
+  viceCaptain: { type: teamMemberSchema, required: true },
 
-    teamName: {
-        type: String,
-        trim: true
-    },
+  players: { 
+    type: [teamMemberSchema], 
+  },
 
-    // jerseySize: {
-    //     type: String,
-    //     enum: ["XS", "S", "M", "L", "XL", "XXL"],
-    //     required: [true, "Jersey size is required"]
-    // },
+  substitutes: { 
+    type: [teamMemberSchema], 
+  },
 
-    // shoeSize: {
-    //     type: String,
-    //     required: [true, "Shoe size is required"]
-    // },
+  coach: {
+    name: { type: String},
+    email: { type: String },
+    phoneNumber: { type: String }
+  },
 
-    experience: {
-        type: String,
-        enum: ["beginner", "intermediate", "advanced", "professional"],
-        required: [true, "Experience level is required"]
-    },
+  // Payment quick refs
+  paymentStatus: { type: String, enum: ["pending","paid","failed","refunded"], default: "pending" },
+  paymentOrderId: { type: String, trim: true },
+  paymentId:      { type: String, trim: true },
+  paymentSignature:{ type: String, trim: true },
 
-    // Optional team block
-    team: teamSchema
-}, {
-    timestamps: true,
-    toJSON: { virtuals: true },
-    toObject: { virtuals: true }
-});
+  // Reference to central Transaction table
+  transaction: { type: mongoose.Schema.Types.ObjectId, ref: "Transaction" },
+  registrationDate: { type: Date, default: Date.now },
+}, { timestamps: true });
 
-footballSchema.index({ userId: 1 }, { unique: true });
 
-// 7. Kabaddi Registration Model
-const kabaddiSchema = new mongoose.Schema({
-    ...baseEventFields,
-
-    category: {
-        type: String,
-        enum: ["men", "women"],
-        required: [true, "Category is required"]
-    },
-
-    // weight: {
-    //     type: Number,
-    //     required: [true, "Weight is required"],
-    //     min: 30,
-    //     max: 150
-    // },
-
-    height: {
-        type: String,
-        required: [true, "Height is required"]
-    },
-
-    position: {
-        type: String,
-        enum: ["raider", "defender", "all_rounder"],
-        required: [true, "Position is required"]
-    },
-
-    // teamPreference: {
-    //     type: String,
-    //     enum: ["create_new", "join_existing", "no_preference"],
-    //     required: [true, "Team preference is required"]
-    // },
-
-    teamName: {
-        type: String,
-        trim: true
-    },
-
-    experience: {
-        type: String,
-        enum: ["beginner", "intermediate", "advanced", "professional"],
-        required: [true, "Experience level is required"]
-    },
-
-    jerseySize: {
-        type: String,
-        enum: ["XS", "S", "M", "L", "XL", "XXL"],
-        required: [true, "Jersey size is required"]
-    },
-
-    // Optional team block
-    team: teamSchema
-}, {
-    timestamps: true,
-    toJSON: { virtuals: true },
-    toObject: { virtuals: true }
-});
-
-kabaddiSchema.index({ userId: 1 }, { unique: true });
-
-// 8. Lawn Tennis Registration Model
+// 8. Lawn Tennis
 const lawnTennisSchema = new mongoose.Schema({
-    ...baseEventFields,
+  category: { type: String, enum: ["Men", "Women"], required: true },
+  
+  collegeName: { type: String},
+  collegeAddress: { type: String },
+  players: { 
+    type: [teamMemberSchema], 
+  },
 
-    category: {
-        type: String,
-        enum: ["men_singles", "women_singles", "men_doubles", "women_doubles", "mixed_doubles"],
-        required: [true, "Category is required"]
-    },
+  coach: {
+    name: { type: String},
+    email: { type: String },
+    phoneNumber: { type: String }
+  },
 
-    partnerDetails: {
-        name: String,
-        email: String,
-        phoneNumber: String,
-        collegeName: String,
-        rollNo: String
-    },
+  // Payment quick refs
+  paymentStatus: { type: String, enum: ["pending","paid","failed","refunded"], default: "pending" },
+  paymentOrderId: { type: String, trim: true },
+  paymentId:      { type: String, trim: true },
+  paymentSignature:{ type: String, trim: true },
 
-    skillLevel: {
-        type: String,
-        enum: ["beginner", "intermediate", "advanced", "professional"],
-        required: [true, "Skill level is required"]
-    },
-
-    playingHand: {
-        type: String,
-        enum: ["right", "left", "ambidextrous"],
-        required: [true, "Playing hand is required"]
-    },
-
-    // racketBrand: {
-    //     type: String,
-    //     trim: true
-    // },
-
-    // preferredSurface: {
-    //     type: String,
-    //     enum: ["hard_court", "clay_court", "grass_court", "no_preference"],
-    //     default: "no_preference"
-    // },
-
-    previousTournaments: {
-        type: String,
-        trim: true,
-        maxlength: 300
-    },
-
-    // tShirtSize: {
-    //     type: String,
-    //     enum: ["XS", "S", "M", "L", "XL", "XXL"],
-    //     required: [true, "T-shirt size is required"]
-    // }
-}, {
-    timestamps: true,
-    toJSON: { virtuals: true },
-    toObject: { virtuals: true }
+  // Reference to central Transaction table
+  transaction: { type: mongoose.Schema.Types.ObjectId, ref: "Transaction" },
+  registrationDate: { type: Date, default: Date.now },
 });
 
-lawnTennisSchema.index({ userId: 1 }, { unique: true });
+// 9. Squash
 
-// 9. Squash Registration Model
 const squashSchema = new mongoose.Schema({
-    ...baseEventFields,
+  category: { type: String, enum: ["Men", "Women"], required: true },
+  
+  collegeName: { type: String},
+  collegeAddress: { type: String },
+  players: { 
+    type: [teamMemberSchema], 
+  },
 
-    category: {
-        type: String,
-        enum: ["men", "women"],
-        required: [true, "Category is required"]
-    },
+  coach: {
+    name: { type: String},
+    email: { type: String },
+    phoneNumber: { type: String }
+  },
 
-    skillLevel: {
-        type: String,
-        enum: ["beginner", "intermediate", "advanced", "professional"],
-        required: [true, "Skill level is required"]
-    },
+  // Payment quick refs
+  paymentStatus: { type: String, enum: ["pending","paid","failed","refunded"], default: "pending" },
+  paymentOrderId: { type: String, trim: true },
+  paymentId:      { type: String, trim: true },
+  paymentSignature:{ type: String, trim: true },
 
-    playingHand: {
-        type: String,
-        enum: ["right", "left", "ambidextrous"],
-        required: [true, "Playing hand is required"]
-    },
-
-    // racketBrand: {
-    //     type: String,
-    //     trim: true
-    // },
-
-    previousTournaments: {
-        type: String,
-        trim: true,
-        maxlength: 300
-    },
-
-    // eyewearRequired: {
-    //     type: Boolean,
-    //     default: false
-    // },
-
-    // tShirtSize: {
-    //     type: String,
-    //     enum: ["XS", "S", "M", "L", "XL", "XXL"],
-    //     required: [true, "T-shirt size is required"]
-    // }
-}, {
-    timestamps: true,
-    toJSON: { virtuals: true },
-    toObject: { virtuals: true }
+  // Reference to central Transaction table
+  transaction: { type: mongoose.Schema.Types.ObjectId, ref: "Transaction" },
+  registrationDate: { type: Date, default: Date.now },
 });
 
-squashSchema.index({ userId: 1 }, { unique: true });
 
-// 10. Table Tennis Registration Model
+// 10. Table Tennis
+
 const tableTennisSchema = new mongoose.Schema({
-    ...baseEventFields,
+  category: { type: String, enum: ["Men", "Women"], required: true },
+  
+  collegeName: { type: String},
+  collegeAddress: { type: String },
 
-    category: {
-        type: String,
-        enum: ["men_singles", "women_singles", "men_doubles", "women_doubles", "mixed_doubles"],
-        required: [true, "Category is required"]
-    },
+  captain: { type: teamMemberSchema, required: true },
 
-    partnerDetails: {
-        name: String,
-        email: String,
-        phoneNumber: String,
-        collegeName: String,
-        rollNo: String
-    },
+  players: { 
+    type: [teamMemberSchema], 
+  },
 
-    skillLevel: {
-        type: String,
-        enum: ["beginner", "intermediate", "advanced", "professional"],
-        required: [true, "Skill level is required"]
-    },
+  coach: {
+    name: { type: String},
+    email: { type: String },
+    phoneNumber: { type: String }
+  },
 
-    // playingHand: {
-    //     type: String,
-    //     enum: ["right", "left", "ambidextrous"],
-    //     required: [true, "Playing hand is required"]
-    // },
+  // Payment quick refs
+  paymentStatus: { type: String, enum: ["pending","paid","failed","refunded"], default: "pending" },
+  paymentOrderId: { type: String, trim: true },
+  paymentId:      { type: String, trim: true },
+  paymentSignature:{ type: String, trim: true },
 
-    playingStyle: {
-        type: String,
-        enum: ["offensive", "defensive", "all_round", "counter_attack"],
-        required: false
-    },
+  // Reference to central Transaction table
+  transaction: { type: mongoose.Schema.Types.ObjectId, ref: "Transaction" },
+  registrationDate: { type: Date, default: Date.now },
+}, { timestamps: true });
 
-    paddleBrand: {
-        type: String,
-        trim: true
-    },
 
-    previousTournaments: {
-        type: String,
-        trim: true,
-        maxlength: 300
-    },
 
-    // tShirtSize: {
-    //     type: String,
-    //     enum: ["XS", "S", "M", "L", "XL", "XXL"],
-    //     required: false
-    // }
-}, {
-    timestamps: true,
-    toJSON: { virtuals: true },
-    toObject: { virtuals: true }
-});
+// 11. Volleyball
 
-tableTennisSchema.index({ userId: 1 }, { unique: true });
-
-// 11. Volleyball Registration Model
 const volleyballSchema = new mongoose.Schema({
-    ...baseEventFields,
+  category: { type: String, enum: ["Men", "Women"], required: true },
+  
+  collegeName: { type: String},
+  collegeAddress: { type: String },
 
-    category: {
-        type: String,
-        enum: ["men", "women"],
-        required: [true, "Category is required"]
-    },
+  captain: { type: teamMemberSchema, required: true },
+  viceCaptain: { type: teamMemberSchema, required: true },
 
-    position: {
-        type: String,
-        enum: ["setter", "outside_hitter", "middle_blocker", "opposite", "libero", "universal"],
-        required: [true, "Position is required"]
-    },
+  players: { 
+    type: [teamMemberSchema], 
+  },
 
-    height: {
-        type: String,
-        required: [true, "Height is required"]
-    },
+  substitutes: { 
+    type: [teamMemberSchema], 
+  },
 
-    // teamPreference: {
-    //     type: String,
-    //     enum: ["create_new", "join_existing", "no_preference"],
-    //     required: [true, "Team preference is required"]
-    // },
+  coach: {
+    name: { type: String},
+    email: { type: String },
+    phoneNumber: { type: String }
+  },
 
-    teamName: {
-        type: String,
-        trim: true
-    },
+  // Payment quick refs
+  paymentStatus: { type: String, enum: ["pending","paid","failed","refunded"], default: "pending" },
+  paymentOrderId: { type: String, trim: true },
+  paymentId:      { type: String, trim: true },
+  paymentSignature:{ type: String, trim: true },
 
-    // jerseySize: {
-    //     type: String,
-    //     enum: ["XS", "S", "M", "L", "XL", "XXL"],
-    //     required: [true, "Jersey size is required"]
-    // },
+  // Reference to central Transaction table
+  transaction: { type: mongoose.Schema.Types.ObjectId, ref: "Transaction" },
+  registrationDate: { type: Date, default: Date.now },
+}, { timestamps: true });
 
-    experience: {
-        type: String,
-        enum: ["beginner", "intermediate", "advanced", "professional"],
-        required: [true, "Experience level is required"]
-    },
+// 12. Weight Lifting
 
-    // Optional team block
-    team: teamSchema
-}, {
-    timestamps: true,
-    toJSON: { virtuals: true },
-    toObject: { virtuals: true }
-});
-
-volleyballSchema.index({ userId: 1 }, { unique: true });
-
-// 12. Weight Lifting Registration Model
 const weightLiftingSchema = new mongoose.Schema({
-    ...baseEventFields,
+  // category: { type: String, enum: ["Men", "Women"], required: true },
+  
+  collegeName: { type: String},
+  collegeAddress: { type: String },
+  players: { 
+    type: teamMemberSchema, 
+  },
 
-    category: {
-        type: String,
-        enum: ["men", "women"],
-        required: [true, "Category is required"]
-    },
+  coach: {
+    name: { type: String},
+    email: { type: String },
+    phoneNumber: { type: String }
+  },
 
-    competitionType: {
-        type: String,
-        enum: ["powerlifting", "olympic_weightlifting", "bodybuilding"],
-        required: [true, "Competition type is required"]
-    },
+  // Payment quick refs
+  paymentStatus: { type: String, enum: ["pending","paid","failed","refunded"], default: "pending" },
+  paymentOrderId: { type: String, trim: true },
+  paymentId:      { type: String, trim: true },
+  paymentSignature:{ type: String, trim: true },
 
-    weightCategory: {
-        type: String,
-        enum: ["under_55", "55_61", "61_67", "67_73", "73_81", "81_96", "96_109", "over_109"],
-        required: [true, "Weight category is required"]
-    },
-
-    currentWeight: {
-        type: Number,
-        required: [true, "Current weight is required"],
-        min: 30,
-        max: 200
-    },
-
-    events: [{
-        type: String,
-        enum: ["squat", "bench_press", "deadlift", "snatch", "clean_jerk"],
-        required: [true, "At least one event must be selected"]
-    }],
-
-    personalBest: {
-        squat: Number,
-        bench_press: Number,
-        deadlift: Number,
-        snatch: Number,
-        clean_jerk: Number
-    },
-
-    experience: {
-        type: String,
-        enum: ["beginner", "intermediate", "advanced", "professional"],
-        required: [true, "Experience level is required"]
-    }
-}, {
-    timestamps: true,
-    toJSON: { virtuals: true },
-    toObject: { virtuals: true }
+  // Reference to central Transaction table
+  transaction: { type: mongoose.Schema.Types.ObjectId, ref: "Transaction" },
+  registrationDate: { type: Date, default: Date.now },
 });
 
-weightLiftingSchema.index({ userId: 1 }, { unique: true });
+const powerLiftingSchema = new mongoose.Schema({
+  // category: { type: String, enum: ["Men", "Women"], required: true },
+  
+  collegeName: { type: String},
+  collegeAddress: { type: String },
+  players: { 
+    type: teamMemberSchema, 
+  },
 
+  coach: {
+    name: { type: String},
+    email: { type: String },
+    phoneNumber: { type: String }
+  },
 
+  // Payment quick refs
+  paymentStatus: { type: String, enum: ["pending","paid","failed","refunded"], default: "pending" },
+  paymentOrderId: { type: String, trim: true },
+  paymentId:      { type: String, trim: true },
+  paymentSignature:{ type: String, trim: true },
 
-const codmSchema = new mongoose.Schema({
-    ...baseEventFields,
-
-    teamName: {
-        type: String,
-        required: [true, "Team name is required"],
-        trim: true
-    },
-
-    teamLeaderName: {
-        type: String,
-        required: [true, "Team leader name is required"],
-        trim: true
-    },
-
-    teamLeaderRollNo: {
-        type: String,
-        required: [true, "Team leader roll number is required"],
-        trim: true
-    },
-
-    teamCaptainNumber: {
-        type: String,
-        required: [true, "Team captain number is required"],
-        trim: true,
-        validate: {
-            validator: function (v) {
-                return /^\d{10}$/.test(v);
-            },
-            message: "Team captain number must be 10 digits"
-        }
-    },
-
-    players: [{
-        name: {
-            type: String,
-            required: [true, "Player name is required"],
-            trim: true
-        },
-        rollNumber: {
-            type: String,
-            required: [true, "Player roll number is required"],
-            trim: true
-        },
-        ign: {
-            type: String,
-            required: [true, "Player IGN is required"],
-            trim: true
-        }
-    }],
-
-    collegeAddress: {
-        type: String,
-        required: [true, "College address is required"],
-        trim: true
-    },
-
-    queries: {
-        type: String,
-        trim: true,
-        maxlength: 500
-    },
-
-    // Optional team block for consistency with other team events
-    team: teamSchema
-}, {
-    timestamps: true,
-    toJSON: { virtuals: true },
-    toObject: { virtuals: true }
+  // Reference to central Transaction table
+  transaction: { type: mongoose.Schema.Types.ObjectId, ref: "Transaction" },
+  registrationDate: { type: Date, default: Date.now },
 });
 
-// Validate that there are exactly 5 players
-codmSchema.pre('validate', function(next) {
-    if (this.players && this.players.length !== 5) {
-        this.invalidate('players', 'CODM team must have exactly 5 players');
-    }
-    next();
-});
-codmSchema.index({ userId: 1 }, { unique: true });
+
+
+ 
 
 
 
-
-
-
-
+// -------------------- Exports --------------------
 export const AthleticsRegistration = mongoose.model("AthleticsRegistration", athleticsSchema);
-export const BadmintonRegistration = mongoose.model("BadmintonRegistration", badmintonSchema);
-export const BasketballRegistration = mongoose.model("BasketballRegistration", basketballSchema);
+export const BadmintonRegistration = mongoose.model("BadmintonRegistration", BadmintonRegistrationSchema);
+export const BasketballRegistration = mongoose.model("BasketballRegistration", BasketballRegistrationSchema);
 export const ChessRegistration = mongoose.model("ChessRegistration", chessSchema);
-export const CricketRegistration = mongoose.model("CricketRegistration", cricketSchema);
-export const FootballRegistration = mongoose.model("FootballRegistration", footballSchema);
-export const KabaddiRegistration = mongoose.model("KabaddiRegistration", kabaddiSchema);
+export const CricketRegistration = mongoose.model("CricketRegistration", CricketRegistrationSchema);
+export const FootballRegistration = mongoose.model("FootballRegistration", FootballRegistrationSchema);
+export const KabaddiRegistration = mongoose.model("KabaddiRegistration", KabaddiRegistrationSchema);
 export const LawnTennisRegistration = mongoose.model("LawnTennisRegistration", lawnTennisSchema);
 export const SquashRegistration = mongoose.model("SquashRegistration", squashSchema);
 export const TableTennisRegistration = mongoose.model("TableTennisRegistration", tableTennisSchema);
 export const VolleyballRegistration = mongoose.model("VolleyballRegistration", volleyballSchema);
 export const WeightLiftingRegistration = mongoose.model("WeightLiftingRegistration", weightLiftingSchema);
-export const CODMRegistration = mongoose.model("CODMRegistration", codmSchema);
+export const PowerLiftingRegistration = mongoose.model("PowerLiftingRegistration", powerLiftingSchema);
+export const BGMIRegistration = mongoose.model("BGMIRegistration", createEsportsSchema("BGMI"));
+export const FreeFireRegistration = mongoose.model("FreeFireRegistration", createEsportsSchema("FreeFire"));
+export const CODMRegistration = mongoose.model("CODMRegistration", createEsportsSchema("CODM"));
+export const ValorantRegistration = mongoose.model("ValorantRegistration", createEsportsSchema("Valorant"));
+export const ClashRoyaleRegistration = mongoose.model("ClashRoyaleRegistration", createEsportsSchema("ClashRoyale"));
+
 
 export const EVENT_MODELS = {
-    athletics: AthleticsRegistration,
-    badminton: BadmintonRegistration,
-    basketball: BasketballRegistration,
-    chess: ChessRegistration,
-    cricket: CricketRegistration,
-    football: FootballRegistration,
-    kabaddi: KabaddiRegistration,
-    lawn_tennis: LawnTennisRegistration,
-    squash: SquashRegistration,
-    table_tennis: TableTennisRegistration,
-    volleyball: VolleyballRegistration,
-    weight_lifting: WeightLiftingRegistration,
-    codm: CODMRegistration
+  athletics: AthleticsRegistration,
+  badminton: BadmintonRegistration,
+  basketball: BasketballRegistration,
+  chess: ChessRegistration,
+  cricket: CricketRegistration,
+  football: FootballRegistration,
+  kabaddi: KabaddiRegistration,
+  lawn_tennis: LawnTennisRegistration,
+  squash: SquashRegistration,
+  table_tennis: TableTennisRegistration,
+  volleyball: VolleyballRegistration,
+  weight_lifting: WeightLiftingRegistration,
+  power_lifting: PowerLiftingRegistration,
+  bgmi: BGMIRegistration,
+  freefire: FreeFireRegistration,
+  codm: CODMRegistration,
+  valorant: ValorantRegistration,
+  clash_royale:ClashRoyaleRegistration
+
 };
