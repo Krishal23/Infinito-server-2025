@@ -1,3 +1,4 @@
+
 import express from "express";
 import cors from "cors";
 import cookieParser from "cookie-parser";
@@ -20,6 +21,8 @@ import simpleEventRegistrationRoutes from "./routes/simpleEventRegistration.rout
 const allowedOrigins = [
   "http://localhost:5173",
   "http://localhost:3000",
+  "https://infinito-client-2025.vercel.app/",
+  "https://infinitotest.34.47.128.100.nip.io",
   "https://infinito-client-2025-6dlaq4r0t-krishal23s-projects.vercel.app",
   "https://infinito-client-2025-git-new-krishal23s-projects.vercel.app"
 ];
@@ -40,20 +43,6 @@ const allowedOriginPatterns = [
 
 const app = express();
 
-
-// app.options('*', cors({
-//   origin: (origin, callback) => {
-//     if (!origin) return callback(null, true);
-//     if (allowedOrigins.includes(origin)) {
-//       callback(null, true);
-//     } else {
-//       callback(new Error("Not allowed by CORS"));
-//     }
-//   },
-//   credentials: true,
-//   methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
-//   allowedHeaders: ["Content-Type", "Authorization"]
-// }));
 
 
 const isProduction = process.env.NODE_ENV === "production";
