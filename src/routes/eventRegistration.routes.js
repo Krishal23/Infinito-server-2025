@@ -1,7 +1,7 @@
 import express from "express";
 import { authenticateUser } from "../middlewares/auth.js";
 import { EVENT_MODELS } from "../models/eventRegistration.model.js"; 
-import { createEventOrder, getAllRegistrations, getMyRegistrations, verifyAndRegister } from "../controllers/eventRegistration.controller.js";
+import { createEventOrder, getAllRegistrations, getMyRegistrations, getRegisteredEvents, verifyAndRegister } from "../controllers/eventRegistration.controller.js";
 import { getEventRegistrations } from "../controllers/eventRegistration.controller.js";
 import { verifyToken } from "../middlewares/verifyToken.js";
 import { authorizeRole } from "../middlewares/authorizeRole.js";
@@ -49,6 +49,12 @@ EVENTS.forEach((event) => {
         verifyToken,
         // authorizeRole("admin", "moderator"), 
         getAllRegistrations
+    );
+
+    router.get(
+        "/registered-events-name",
+        verifyToken,
+        getRegisteredEvents
     );
 
 });

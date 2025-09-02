@@ -229,3 +229,23 @@ export const getAllRegistrations = CatchAsyncErrror(async (req, res, next) => {
         registrations: results,
     });
 });
+
+
+
+export const getRegisteredEvents = CatchAsyncErrror(async (req, res, next) => {
+    const userId = req.user._id;
+
+    const user = await User.findById(userId).select("eventRegistrations");
+
+    if (!user) return next(new ErrorHandler("User not found", 404));
+
+    return res.status(200).json({
+        success: true,
+        events: user.eventRegistrations.map(reg => ({
+            event: reg.event,
+            registrationId: reg.registrationId,
+            status: reg.status,
+            registrationDate: reg.registrationDate
+        }))
+    });
+});
