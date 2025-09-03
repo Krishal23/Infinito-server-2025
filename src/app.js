@@ -14,6 +14,7 @@ import { handleErrors } from "./utils/ErrorHandler.js";
 import eventRegistrationRoutes from "./routes/eventRegistration.routes.js";
 import teamRegistrationRoutes from "./routes/teamRegistration.routes.js";
 import simpleEventRegistrationRoutes from "./routes/simpleEventRegistration.routes.js";
+import accommodationRoutes from "./routes/accommodation.routes.js";
 // import dashboardRouter from "./routes/dashboard.routes.js";
 
 
@@ -116,7 +117,7 @@ app.use("/api/v1/events", eventRegistrationRoutes);
 app.use("/api/v1/teams", teamRegistrationRoutes);
 app.use("/api/v1/simple-events", simpleEventRegistrationRoutes);
 // app.use("/api/v1/user2", dashboardRouter);
-
+app.use("/api/accommodation", accommodationRoutes);
 
 //admin-routes
 
