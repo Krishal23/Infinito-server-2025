@@ -50,9 +50,6 @@ const isProduction = process.env.NODE_ENV === "production";
 
 const corsOptions = {
   origin: (origin, callback) => {
-    // Log origin for debugging
-    try { console.log("CORS Origin:", origin || "<no-origin>"); } catch { }
-    // Allow all in non-production for easier local testing
     if (!isProduction) {
       return callback(null, true);
     }

@@ -23,6 +23,7 @@
     "jsonwebtoken": "^9.0.2",
     "mongoose": "^8.16.5",
     "nodemailer": "^7.0.5",
+    "pdfkit": "^0.17.2",
     "razorpay": "^2.9.6",
     "react-toastify": "^11.0.5"
   },

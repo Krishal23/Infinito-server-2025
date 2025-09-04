@@ -27,7 +27,7 @@ export const sendOTPEmail = async (email, otp, type = "signup", userData = {}) =
     const info = await transporter.sendMail({
       from: "Team Infinito 2025",
       to: email,
-      replyTo: "mpr.infinito@iitp.ac.in",
+      replyTo: "team.infinito25@gmail.com",
       subject: emailContent.subject,
       html: emailContent.html,
       text: emailContent.text 
@@ -44,7 +44,7 @@ export const sendWelcomeEmail = async (email, userData) => {
   const transporter = getTransporter(email);
   const senderInfo = getSenderInfo(email, process.env);
 
-  const html = `<h1>Welcome, ${userData.fullname}</h1>`;
+  const html = `<h1>Welcome, ${userData.fullname || userData.username}</h1>`;
   await transporter.sendMail({ from: senderInfo, to: email, subject: "Welcome!", html });
 };
 
@@ -60,7 +60,7 @@ export const sendCAApplicationEmail = async (email, status, userData = {}) => {
     const info = await transporter.sendMail({
       from: "Team Infinito 2025",
       to: email,
-      replyTo: "mpr.infinito@iitp.ac.in",
+      replyTo: "team.infinito25@gmail.com",
       subject: emailContent.subject,
       html: emailContent.html,
       text: emailContent.text,

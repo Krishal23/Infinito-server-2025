@@ -34,7 +34,7 @@ EVENTS.forEach((event) => {
   router.get(
       `/${event}/registrations`,
       verifyToken,
-    //   authorizeRole["admin","moderator"],
+        authorizeRole(["admin", "moderator"]), 
       getEventRegistrations(event) 
   );
 
@@ -47,7 +47,7 @@ EVENTS.forEach((event) => {
     router.get(
         "/all-registrations",
         verifyToken,
-        // authorizeRole("admin", "moderator"), 
+        authorizeRole(["admin", "moderator"]), 
         getAllRegistrations
     );
 

@@ -7,9 +7,6 @@ const razorpay = new Razorpay({
 });
 
 export const createOrder = async (amount, receiptId) => {
-//   console.log("HEllo")
-//   console.log("Razorpay Key:", process.env.RAZORPAY_KEY_ID);
-// console.log("Razorpay Secret:", process.env.RAZORPAY_KEY_SECRET);
 
   const options = {
     amount: amount * 100, 
@@ -17,8 +14,6 @@ export const createOrder = async (amount, receiptId) => {
     receipt: receiptId,
     payment_capture: 1,
   };
-  console.log("nop")
-  console.log(options," fds")
   return await razorpay.orders.create(options);
 };
 
