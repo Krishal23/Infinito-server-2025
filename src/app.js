@@ -22,9 +22,10 @@ import accommodationRoutes from "./routes/accommodation.routes.js";
 const allowedOrigins = [
   "http://localhost:5173",
   "http://localhost:3000",
-  "https://infinito-client-2025.vercel.app/",
+  "https://infinito-client-2025.vercel.app",
   "https://infinitotest.34.47.128.100.nip.io",
   "https://infinito-client-2025-6dlaq4r0t-krishal23s-projects.vercel.app",
+  "https://infinito-client-2025.vercel.app",
   "https://infinito-client-2025-git-new-krishal23s-projects.vercel.app"
 ];
 
@@ -65,8 +66,29 @@ const corsOptions = {
   optionsSuccessStatus: 204,
 };
 
+app.use((req, res, next) => {
+  console.log("Incoming Origin:", req.headers.origin);
+  next();
+});
+
+
 // Main CORS
 app.use(cors(corsOptions));
+// app.options("*", cors(corsOptions));
+
+
+app.use((req, res, next) => {
+  res.header("Access-Control-Allow-Origin", req.headers.origin || "*");
+  res.header("Access-Control-Allow-Credentials", "true");
+  res.header("Access-Control-Allow-Methods", "GET,POST,PUT,DELETE,OPTIONS");
+  res.header("Access-Control-Allow-Headers", "Content-Type,Authorization,X-Requested-With");
+  if (req.method === "OPTIONS") {
+    return res.sendStatus(204);
+  }
+  next();
+});
+
+
 
 app.use(
   session({
