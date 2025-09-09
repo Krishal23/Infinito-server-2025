@@ -15,6 +15,7 @@ export const sendEventRegistrationEmail = async (
   try {
     const transporter = getTransporter(registrationData.email);
     const senderInfo = getSenderInfo(registrationData.email, process.env);
+    const whatsappLink= "https://chat.whatsapp.com/DfYJOiHIHdIDSvKgDJkcKP?mode=ems_copy_c"
 
     const playerTxt = buildPlayerTxt(registrationData, eventKey);
 
@@ -50,6 +51,8 @@ export const sendEventRegistrationEmail = async (
       ${paymentDetails}
       <br/>
       <p>Thank you for registering. We’ll see you at Infinito 2025!</p>
+      <p><strong>Next Step:</strong> Please join our official WhatsApp channel to stay updated:<br/>
+        <a href="${whatsappLink}" style="color:#007bff;text-decoration:none;" target="_blank">Join WhatsApp Channel</a></p>
     `;
 
     const info = await gmailTransporter.sendMail({
