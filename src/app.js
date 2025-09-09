@@ -20,8 +20,9 @@ import accommodationRoutes from "./routes/accommodation.routes.js";
 
 // Static allowlist (base)
 const allowedOrigins = [
-  "http://localhost:5173",
-  "http://localhost:3000",
+  // "http://localhost:5173",
+  // "http://localhost:3000",
+  "https://infinito.iitp.ac.in",
   "https://infinito-client-2025.vercel.app",
   "https://infinitotest.34.47.128.100.nip.io",
   "https://infinito-client-2025-6dlaq4r0t-krishal23s-projects.vercel.app",
