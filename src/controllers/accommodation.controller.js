@@ -2,6 +2,15 @@ import { Accommodation } from "../models/accommodation.model.js";
 import { EVENT_MODELS } from "../models/eventRegistration.model.js";
 import { User } from "../models/user.model.js";
 import Coupon from "../models/coupon.model.js"; // import coupon model
+import Razorpay from "razorpay";
+import crypto from "crypto";
+
+
+
+const razorpay = new Razorpay({
+  key_id: process.env.RAZORPAY_KEY_ID,
+  key_secret: process.env.RAZORPAY_KEY_SECRET,
+});
 
 // Helper: Check if event exists
 const isValidEventId = async (eventId) => {
@@ -36,7 +45,6 @@ export const createAccommodation = async (req, res) => {
 
     // Fees
     const accommodationFee = 500 * players.length * stayDays;
-    const mealsFee = 200 * players.length * stayDays;
 
     // Coupon logic using DB
     let couponDiscount = 0;
@@ -55,7 +63,7 @@ export const createAccommodation = async (req, res) => {
       if (coupon.couponType === "flat") {
         couponDiscount = coupon.discount;
       } else if (coupon.couponType === "percentage") {
-        couponDiscount = Math.floor((coupon.discount / 100) * (accommodationFee + mealsFee));
+        couponDiscount = Math.floor((coupon.discount / 100) * (accommodationFee));
       }
 
       isCouponApplied = true;
@@ -74,11 +82,10 @@ export const createAccommodation = async (req, res) => {
       checkOutDate: checkOut,
       players,
       accommodationFee,
-      mealsFee,
       couponCode: couponCode || null,
       couponDiscount,
       isCouponApplied,
-      totalAmount: accommodationFee + mealsFee - couponDiscount,
+      totalAmount: accommodationFee - couponDiscount,
       createdBy: userId.toString(),
     });
 
@@ -93,6 +100,162 @@ export const createAccommodation = async (req, res) => {
   } catch (error) {
     console.error("Error creating accommodation:", error);
     res.status(500).json({ message: "Internal server error", error });
+  }
+};
+
+
+
+
+export const createAccommodationOrder = async (req, res) => {
+  try {
+console.log("Razorpay instance created",  process.env.RAZORPAY_KEY_ID ," ",process.env.RAZORPAY_KEY_SECRET);
+
+    const userId = req?.user?._id;
+    if (!userId) return res.status(401).json({ message: "User not logged in" });
+
+    const { eventId, genderCategory, checkInDate, stayDays, players, couponCode } = req.body;
+
+    if (!eventId || !genderCategory || !checkInDate || !stayDays || !players || players.length === 0) {
+      return res.status(400).json({ message: "Missing required fields" });
+    }
+
+
+
+    // Check event existence
+    const eventExists = await isValidEventId(eventId);
+    if (!eventExists) return res.status(404).json({ message: "Event not found" });
+
+
+    // Compute checkout date
+    const checkIn = new Date(checkInDate);
+    const checkOut = new Date(checkIn);
+    checkOut.setDate(checkOut.getDate() + (Number(stayDays) - 1));
+
+
+    // ---- Fee Calculation ----
+    const accommodationFee = 500 * players.length * stayDays;
+
+    let couponDiscount = 0;
+    let isCouponApplied = false;
+
+    if (couponCode) {
+      const coupon = await Coupon.findOne({ couponTag: couponCode, isLive: true });
+      if (!coupon) return res.status(400).json({ message: "Invalid or inactive coupon" });
+
+      if (new Date() > coupon.validUpto) return res.status(400).json({ message: "Coupon expired" });
+
+      if (coupon.couponType === "flat") {
+        couponDiscount = coupon.discount;
+      } else if (coupon.couponType === "percentage") {
+        couponDiscount = Math.floor((coupon.discount / 100) * (accommodationFee));
+      }
+      isCouponApplied = true;
+
+      coupon.usedBy.push(userId);
+      await coupon.save();
+    }
+
+    const totalAmount = accommodationFee - couponDiscount;
+
+
+    // Shorten ObjectId + timestamp
+    const shortUserId = userId.toString().slice(-10); // take last 10 chars
+    const timestamp = Date.now().toString().slice(-10); // last 10 digits
+    const receipt = `acc_${shortUserId}_${timestamp}`;
+
+    // ---- Create Razorpay Order ----
+    const order = await razorpay.orders.create({
+      amount: totalAmount * 100,
+      currency: "INR",
+      receipt: receipt,
+    });
+
+    res.status(201).json({
+      message: "Order created successfully",
+      orderId: order.id,
+      amount: totalAmount,
+      currency: "INR",
+      key: process.env.RAZORPAY_KEY_ID,
+      accommodationData: {
+        userId,
+        eventId,
+        genderCategory,
+        checkInDate,
+        stayDays,
+        players,
+        accommodationFee,
+        couponCode,
+        couponDiscount,
+        isCouponApplied,
+        totalAmount,
+      },
+    });
+  } catch (error) {
+    console.error("Error creating accommodation order:", error);
+    res.status(500).json({ message: "Internal server error" });
+  }
+};
+
+
+export const verifyAccommodationPayment = async (req, res) => {
+  try {
+    const { razorpay_order_id, razorpay_payment_id, razorpay_signature, accommodationData } = req.body;
+    const userId = req?.user?._id;
+
+    if (!razorpay_order_id || !razorpay_payment_id || !razorpay_signature || !accommodationData) {
+      return res.status(400).json({ message: "Missing payment details" });
+    }
+
+    // ---- Verify Razorpay Signature ----
+    const sign = razorpay_order_id + "|" + razorpay_payment_id;
+    const expectedSign = crypto
+      .createHmac("sha256", process.env.RAZORPAY_KEY_SECRET)
+      .update(sign)
+      .digest("hex");
+
+    if (razorpay_signature !== expectedSign) {
+      return res.status(400).json({ message: "Invalid signature, payment verification failed" });
+    }
+
+    // ---- Compute checkout date ----
+    const checkIn = new Date(accommodationData.checkInDate);
+    const checkOut = new Date(checkIn);
+    checkOut.setDate(checkOut.getDate() + (Number(accommodationData.stayDays) - 1));
+
+    // ---- Save Accommodation ----
+    const newAccommodation = new Accommodation({
+      userId,
+      eventId: accommodationData.eventId,
+      genderCategory: accommodationData.genderCategory,
+      checkInDate: checkIn,
+      checkOutDate: checkOut,
+      players: accommodationData.players,
+      accommodationFee: accommodationData.accommodationFee,
+      couponCode: accommodationData.couponCode || null,
+      couponDiscount: accommodationData.couponDiscount || 0,
+      isCouponApplied: accommodationData.isCouponApplied || false,
+      totalAmount: accommodationData.totalAmount,
+      paymentOrderId: razorpay_order_id,
+      paymentId: razorpay_payment_id,
+      paymentSignature: razorpay_signature,
+      paymentStatus: "paid",
+      status: "confirmed",
+      createdBy: userId.toString(),
+    });
+
+    await newAccommodation.save();
+
+    await User.findByIdAndUpdate(userId, {
+      $push: { accommodations: newAccommodation._id },
+    });
+
+    res.status(200).json({
+      message: "Payment verified & accommodation booked successfully",
+      accommodation: newAccommodation,
+    });
+  } catch (error) {
+    console.error("Error verifying accommodation payment:", error);
+    res.status(500).json({ message: "Internal server error" });
   }
 };
 
@@ -146,13 +309,13 @@ export const updateMealSlot = async (req, res) => {
     await accommodation.save();
     // console.log(accommodation)
     accommodation.players.forEach(player => {
-  console.log(`\nPlayer: ${player.name} (${player.email})`);
-  player.mealsTracking.forEach(tracking => {
-    const dateStr = tracking.date.toISOString().split('T')[0];
-    const mealsStatus = tracking.slots.map(slot => `${slot.type}: ${slot.taken ? '✅' : '❌'}`).join(', ');
-    console.log(`  ${dateStr} -> ${mealsStatus}`);
-  });
-});
+      console.log(`\nPlayer: ${player.name} (${player.email})`);
+      player.mealsTracking.forEach(tracking => {
+        const dateStr = tracking.date.toISOString().split('T')[0];
+        const mealsStatus = tracking.slots.map(slot => `${slot.type}: ${slot.taken ? '✅' : '❌'}`).join(', ');
+        console.log(`  ${dateStr} -> ${mealsStatus}`);
+      });
+    });
 
     res.status(200).json({ message: "Meal slot updated successfully", accommodation });
   } catch (error) {

@@ -139,8 +139,8 @@ app.use("/api/v1/events", eventRegistrationRoutes);
 app.use("/api/v1/teams", teamRegistrationRoutes);
 app.use("/api/v1/simple-events", simpleEventRegistrationRoutes);
 // app.use("/api/v1/user2", dashboardRouter);
-// app.use("/api/v1/accommodation", accommodationRoutes);
-// app.use("/api/v1/coupons", couponRoutes);
+app.use("/api/v1/accommodation", accommodationRoutes);
+app.use("/api/v1/coupons", couponRoutes);
 
 
 //admin-routes
