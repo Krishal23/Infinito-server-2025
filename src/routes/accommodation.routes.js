@@ -1,28 +1,13 @@
 import express from "express";
-import { authenticateUser, verifyAdmin } from "../middlewares/auth.js";
-import {
-    createAccommodationOrder,
-    verifyAccommodationPayment,
-    getMyAccommodation,
-    getAllAccommodations,
-    getAccommodationPricing
-} from "../controllers/accommodation.controller.js";
+import { createAccommodation, getAccommodation, updateMealSlot } from "../controllers/accommodation.controller.js";
+import { verifyToken } from "../middlewares/verifyToken.js";
 
 const router = express.Router();
 
-// Get accommodation pricing information (public)
-router.get("/pricing", getAccommodationPricing);
+router.post("/",verifyToken, createAccommodation);
 
-// Create accommodation order (authenticated users)
-router.post("/create-order", authenticateUser, createAccommodationOrder);
+router.put("/meal-slot", verifyToken, updateMealSlot);
 
-// Verify payment and book accommodation (authenticated users)
-router.post("/verify-payment", authenticateUser, verifyAccommodationPayment);
-
-// Get my accommodation details (authenticated users)
-router.get("/my-accommodation", authenticateUser, getMyAccommodation);
-
-// Get all accommodations (admin only)
-router.get("/all", verifyAdmin, getAllAccommodations);
+router.get("/",verifyToken, getAccommodation);
 
 export default router;

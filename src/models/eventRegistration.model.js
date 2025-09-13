@@ -193,9 +193,11 @@ const BadmintonRegistrationSchema = new mongoose.Schema({
   collegeName: { type: String },
   collegeAddress: { type: String },
   coach: {
-    name: { type: String},
-    email: { type: String},
-    phoneNumber: { type: String}
+    fullname: { type: String},
+    email: { type: String },
+    phoneNumber: { type: String },
+    aadharId: { type: String }
+
   },
   category: { type: String, enum: ["Men", "Women"], required: true },
   
@@ -231,9 +233,11 @@ const BasketballRegistrationSchema = new mongoose.Schema({
   },
 
   coach: {
-    name: { type: String},
+    fullname: { type: String},
     email: { type: String },
-    phoneNumber: { type: String }
+    phoneNumber: { type: String },
+    aadharId: { type: String }
+
   },
 
   // Payment quick refs
@@ -258,9 +262,11 @@ const chessSchema = new mongoose.Schema({
   collegeName: { type: String },
   collegeAddress: { type: String },
   coach: {
-    name: { type: String},
-    email: { type: String},
-    phoneNumber: { type: String}
+    fullname: { type: String},
+    email: { type: String },
+    phoneNumber: { type: String },
+    aadharId: { type: String }
+
   },
   
   // Payment quick refs
@@ -292,10 +298,11 @@ const CricketRegistrationSchema = new mongoose.Schema({
   },
 
   coach: {
-    name: { type: String },
+    fullname: { type: String},
     email: { type: String },
     phoneNumber: { type: String },
     aadharId: { type: String }
+
   },
 
   // Payment quick refs
@@ -328,7 +335,7 @@ const FootballRegistrationSchema = new mongoose.Schema({
   },
 
   coach: {
-    name: { type: String },
+    fullname: { type: String},
     email: { type: String },
     phoneNumber: { type: String },
     aadharId: { type: String }
@@ -370,9 +377,11 @@ const KabaddiRegistrationSchema = new mongoose.Schema({
   },
 
   coach: {
-    name: { type: String},
+    fullname: { type: String},
     email: { type: String },
-    phoneNumber: { type: String }
+    phoneNumber: { type: String },
+    aadharId: { type: String }
+
   },
 
   // Payment quick refs
@@ -400,9 +409,11 @@ const lawnTennisSchema = new mongoose.Schema({
   },
 
   coach: {
-    name: { type: String},
+    fullname: { type: String},
     email: { type: String },
-    phoneNumber: { type: String }
+    phoneNumber: { type: String },
+    aadharId: { type: String }
+
   },
 
   // Payment quick refs
@@ -429,9 +440,11 @@ const squashSchema = new mongoose.Schema({
   },
 
   coach: {
-    name: { type: String},
+    fullname: { type: String},
     email: { type: String },
-    phoneNumber: { type: String }
+    phoneNumber: { type: String },
+    aadharId: { type: String }
+
   },
 
   // Payment quick refs
@@ -463,9 +476,11 @@ const tableTennisSchema = new mongoose.Schema({
   },
 
   coach: {
-    name: { type: String},
+    fullname: { type: String},
     email: { type: String },
-    phoneNumber: { type: String }
+    phoneNumber: { type: String },
+    aadharId: { type: String }
+
   },
 
   // Payment quick refs
@@ -503,9 +518,11 @@ const volleyballSchema = new mongoose.Schema({
   },
 
   coach: {
-    name: { type: String},
+    fullname: { type: String},
     email: { type: String },
-    phoneNumber: { type: String }
+    phoneNumber: { type: String },
+    aadharId: { type: String }
+
   },
 
   // Payment quick refs
@@ -532,9 +549,11 @@ const weightLiftingSchema = new mongoose.Schema({
   },
 
   coach: {
-    name: { type: String},
+    fullname: { type: String},
     email: { type: String },
-    phoneNumber: { type: String }
+    phoneNumber: { type: String },
+    aadharId: { type: String }
+
   },
 
   // Payment quick refs
@@ -558,9 +577,11 @@ const powerLiftingSchema = new mongoose.Schema({
   },
 
   coach: {
-    name: { type: String},
+    fullname: { type: String},
     email: { type: String },
-    phoneNumber: { type: String }
+    phoneNumber: { type: String },
+    aadharId: { type: String }
+
   },
 
   // Payment quick refs

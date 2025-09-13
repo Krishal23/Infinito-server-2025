@@ -1,245 +1,193 @@
-import { CatchAsyncErrror } from "../middlewares/catchAsyncError.js";
-import { User } from "../models/user.model.js";
-import { Transaction } from "../models/transaction.model.js";
 import { Accommodation } from "../models/accommodation.model.js";
-import { createOrder } from "./payment.controller.js";
-import crypto from "crypto";
-import ErrorHandler from "../utils/ErrorHandler.js";
+import { EVENT_MODELS } from "../models/eventRegistration.model.js";
+import { User } from "../models/user.model.js";
+import Coupon from "../models/coupon.model.js"; // import coupon model
 
-
-const ACCOMMODATION_RATE_PER_DAY = 250; 
-const MEALS_RATE_PER_DAY = 180; 
-
-
-const calculateAccommodationCost = (days, optForMeals) => {
-    const accommodationFee = days * ACCOMMODATION_RATE_PER_DAY;
-    const mealsFee = optForMeals ? days * MEALS_RATE_PER_DAY : 0;
-    const totalAmount = accommodationFee + mealsFee;
-    
-    return {
-        accommodationFee,
-        mealsFee,
-        totalAmount
-    };
+// Helper: Check if event exists
+const isValidEventId = async (eventId) => {
+  for (const modelName in EVENT_MODELS) {
+    const model = EVENT_MODELS[modelName];
+    const exists = await model.exists({ _id: eventId });
+    if (exists) return true;
+  }
+  return false;
 };
 
 
-export const createAccommodationOrder = CatchAsyncErrror(async (req, res, next) => {
-    try {
-        const userId = req.user._id;
-        const { 
-            fullName, 
-            address, 
-            phoneNumber, 
-            adhaar, 
-            accommodationDays, 
-            optForMeals 
-        } = req.body;
+export const createAccommodation = async (req, res) => {
+  try {
+    const userId = req?.user?._id;
+    if (!userId) return res.status(401).json({ message: "User not logged in" });
 
+    const { eventId, genderCategory, checkInDate, stayDays, players, couponCode } = req.body;
 
-        if (!fullName || !address || !phoneNumber || !adhaar || !accommodationDays) {
-            return next(new ErrorHandler("All fields are required", 400));
-        }
-
-
-        const existingAccommodation = await Accommodation.findOne({ userId });
-        if (existingAccommodation) {
-            return res.status(400).json({
-                success: false,
-                message: "You already have an accommodation booking",
-                accommodation: existingAccommodation
-            });
-        }
-
-
-        const { accommodationFee, mealsFee, totalAmount } = calculateAccommodationCost(
-            accommodationDays, 
-            optForMeals || false
-        );
-
-
-        const receipt = `accommodation_${userId.toString().slice(-10)}_${Date.now().toString().slice(-6)}`;
-        
-
-        const order = await createOrder(totalAmount, receipt);
-
-
-        await Transaction.create({
-            userId,
-            event: "accommodation",
-            orderId: order.id,
-            amount: totalAmount,
-            currency: order.currency || "INR",
-            status: "PENDING",
-        });
-
-        return res.status(201).json({
-            success: true,
-            message: "Accommodation order created successfully",
-            order,
-            key: process.env.RAZORPAY_KEY_ID,
-            accommodationDetails: {
-                accommodationDays,
-                optForMeals: optForMeals || false,
-                accommodationFee,
-                mealsFee,
-                totalAmount
-            }
-        });
-
-    } catch (err) {
-        console.log("Accommodation order creation error:", err);
-        return next(new ErrorHandler(err.message + " | " + (err.description || ""), 500));
-    }
-});
-
-
-export const verifyAccommodationPayment = CatchAsyncErrror(async (req, res, next) => {
-    try {
-        const userId = req.user._id;
-        const {
-            razorpay_order_id,
-            razorpay_payment_id,
-            razorpay_signature,
-            accommodationData
-        } = req.body;
-
-        // Verify payment signature
-        const body = `${razorpay_order_id}|${razorpay_payment_id}`;
-        const expected = crypto
-            .createHmac("sha256", process.env.RAZORPAY_KEY_SECRET)
-            .update(body)
-            .digest("hex");
-
-        if (expected !== razorpay_signature) {
-            return next(new ErrorHandler("Payment verification failed", 400));
-        }
-
-
-        const txn = await Transaction.findOne({
-            userId,
-            orderId: razorpay_order_id,
-            status: "PENDING",
-        });
-
-        if (!txn) {
-            return next(new ErrorHandler("No pending transaction found", 404));
-        }
-
-
-        const user = await User.findById(userId).select("username email");
-        
-
-        const { accommodationFee, mealsFee, totalAmount } = calculateAccommodationCost(
-            accommodationData.accommodationDays,
-            accommodationData.optForMeals || false
-        );
-
-
-        const accommodation = await Accommodation.create({
-            userId,
-            username: user.username,
-            email: user.email,
-            fullName: accommodationData.fullName,
-            address: accommodationData.address,
-            phoneNumber: accommodationData.phoneNumber,
-            adhaar: accommodationData.adhaar,
-            accommodationDays: accommodationData.accommodationDays,
-            optForMeals: accommodationData.optForMeals || false,
-            totalAmount,
-            accommodationFee,
-            mealsFee,
-            paymentOrderId: razorpay_order_id,
-            paymentId: razorpay_payment_id,
-            paymentSignature: razorpay_signature,
-            paymentStatus: "paid",
-            status: "confirmed",
-            transaction: txn._id
-        });
-
-
-        txn.paymentId = razorpay_payment_id;
-        txn.signature = razorpay_signature;
-        txn.status = "SUCCESS";
-        txn.registrationId = accommodation._id;
-        await txn.save();
-
-        return res.status(200).json({
-            success: true,
-            message: "Payment verified and accommodation booked successfully",
-            accommodation
-        });
-
-    } catch (err) {
-        console.log("Accommodation payment verification error:", err);
-        return next(new ErrorHandler(err.message, 500));
-    }
-});
-
-
-export const getMyAccommodation = CatchAsyncErrror(async (req, res, next) => {
-    const userId = req.user._id;
-    
-    const accommodation = await Accommodation.findOne({ userId })
-        .populate("transaction", "orderId paymentId status");
-
-    if (!accommodation) {
-        return res.status(404).json({
-            success: false,
-            message: "No accommodation booking found"
-        });
+    if (!eventId || !genderCategory || !checkInDate || !stayDays || !players || players.length === 0) {
+      return res.status(400).json({ message: "Missing required fields" });
     }
 
-    return res.status(200).json({
-        success: true,
-        accommodation
+    // Check event existence
+    const eventExists = await isValidEventId(eventId);
+    if (!eventExists) return res.status(404).json({ message: "Event not found" });
+
+    // Compute checkout date
+    const checkIn = new Date(checkInDate);
+    const checkOut = new Date(checkIn);
+    checkOut.setDate(checkOut.getDate() + (Number(stayDays) - 1));
+
+    // Fees
+    const accommodationFee = 500 * players.length * stayDays;
+    const mealsFee = 200 * players.length * stayDays;
+
+    // Coupon logic using DB
+    let couponDiscount = 0;
+    let isCouponApplied = false;
+
+    if (couponCode) {
+      const coupon = await Coupon.findOne({ couponTag: couponCode, isLive: true });
+      if (!coupon) {
+        return res.status(400).json({ message: "Invalid or inactive coupon" });
+      }
+
+      if (new Date() > coupon.validUpto) {
+        return res.status(400).json({ message: "Coupon expired" });
+      }
+
+      if (coupon.couponType === "flat") {
+        couponDiscount = coupon.discount;
+      } else if (coupon.couponType === "percentage") {
+        couponDiscount = Math.floor((coupon.discount / 100) * (accommodationFee + mealsFee));
+      }
+
+      isCouponApplied = true;
+
+      // Add user to coupon's usedBy
+      coupon.usedBy.push(userId);
+      await coupon.save();
+    }
+
+    // Prepare accommodation object
+    const newAccommodation = new Accommodation({
+      userId,
+      eventId,
+      genderCategory,
+      checkInDate: checkIn,
+      checkOutDate: checkOut,
+      players,
+      accommodationFee,
+      mealsFee,
+      couponCode: couponCode || null,
+      couponDiscount,
+      isCouponApplied,
+      totalAmount: accommodationFee + mealsFee - couponDiscount,
+      createdBy: userId.toString(),
     });
+
+    await newAccommodation.save();
+
+    await User.findByIdAndUpdate(userId, { $push: { accommodations: newAccommodation._id } });
+
+    res.status(201).json({
+      message: "Accommodation booked successfully",
+      accommodation: newAccommodation,
+    });
+  } catch (error) {
+    console.error("Error creating accommodation:", error);
+    res.status(500).json({ message: "Internal server error", error });
+  }
+};
+
+
+
+// Update a meal slot for a specific player
+export const updateMealSlot = async (req, res) => {
+  try {
+    const userId = req?.user?._id; // logged-in user
+    const { accommodationId, playerEmail, date, mealType, taken } = req.body;
+
+    if (!accommodationId || !playerEmail || !date || !mealType) {
+      return res.status(400).json({ message: "Missing required fields" });
+    }
+
+    const accommodation = await Accommodation.findOne({
+      _id: accommodationId,
+      userId, // ensure only the owner can update
+    });
+
+    // console.log(accommodationId, " ", accommodation)
+    if (!accommodation) {
+      return res.status(404).json({ message: "Accommodation not found" });
+    }
+
+    // Find the player
+    const player = accommodation.players.find(p => p.email === playerEmail);
+    if (!player) {
+      return res.status(404).json({ message: "Player not found" });
+    }
+
+    // Find the date entry
+    const mealDate = new Date(date).toDateString();
+    const dayTracking = player.mealsTracking.find(mt => new Date(mt.date).toDateString() === mealDate);
+
+    if (!dayTracking) {
+      return res.status(404).json({ message: "Meal tracking for this date not found" });
+    }
+
+    // Find the meal slot
+    const slot = dayTracking.slots.find(s => s.type === mealType);
+    if (!slot) {
+      return res.status(404).json({ message: "Meal type not found" });
+    }
+
+    // Update the slot
+    slot.taken = taken;
+    slot.verifiedAt = new Date();
+    slot.verifiedBy = userId.toString();
+
+    await accommodation.save();
+    // console.log(accommodation)
+    accommodation.players.forEach(player => {
+  console.log(`\nPlayer: ${player.name} (${player.email})`);
+  player.mealsTracking.forEach(tracking => {
+    const dateStr = tracking.date.toISOString().split('T')[0];
+    const mealsStatus = tracking.slots.map(slot => `${slot.type}: ${slot.taken ? '✅' : '❌'}`).join(', ');
+    console.log(`  ${dateStr} -> ${mealsStatus}`);
+  });
 });
 
+    res.status(200).json({ message: "Meal slot updated successfully", accommodation });
+  } catch (error) {
+    console.error("Error updating meal slot:", error);
+    res.status(500).json({ message: "Internal server error", error });
+  }
+};
 
-export const getAllAccommodations = CatchAsyncErrror(async (req, res, next) => {
-    const { page = 1, limit = 10, status } = req.query;
-    const skip = (page - 1) * limit;
 
 
+
+export const getAccommodation = async (req, res) => {
+  try {
+    const { eventId, userId } = req.query;
+
+    // Build dynamic filter
     const filter = {};
-    if (status) filter.status = status;
+    if (eventId) filter.eventId = eventId;
+    if (userId) filter.userId = userId;
 
+    const accommodations = await Accommodation.find(filter);
 
-    const accommodations = await Accommodation.find(filter)
-        .populate("userId", "username email fullname")
-        .populate("transaction", "orderId paymentId status")
-        .sort({ createdAt: -1 })
-        .skip(skip)
-        .limit(parseInt(limit));
-
-    const totalAccommodations = await Accommodation.countDocuments(filter);
+    if (!accommodations || accommodations.length === 0) {
+      return res.status(404).json({ message: "No accommodation found" });
+    }
 
     res.status(200).json({
-        success: true,
-        accommodations,
-        pagination: {
-            currentPage: parseInt(page),
-            totalPages: Math.ceil(totalAccommodations / limit),
-            totalAccommodations,
-            hasNext: page < Math.ceil(totalAccommodations / limit),
-            hasPrev: page > 1,
-        },
+      message: "Accommodation fetched successfully",
+      count: accommodations.length,
+      accommodations,
     });
-});
+  } catch (error) {
+    console.error("Error fetching accommodation:", error);
+    res.status(500).json({ message: "Internal server error", error });
+  }
+};
 
 
-export const getAccommodationPricing = CatchAsyncErrror(async (req, res, next) => {
-    return res.status(200).json({
-        success: true,
-        pricing: {
-            accommodationRate: ACCOMMODATION_RATE_PER_DAY,
-            mealsRate: MEALS_RATE_PER_DAY,
-            currency: "INR",
-            description: {
-                accommodation: `₹${ACCOMMODATION_RATE_PER_DAY} per day per person`,
-                meals: `₹${MEALS_RATE_PER_DAY} per day per person (optional)`
-            }
-        }
-    });
-});
