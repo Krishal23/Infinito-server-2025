@@ -79,6 +79,12 @@ const userSchema = new mongoose.Schema({
     ref: "Accommodation"
   }],
 
+  merchOrders: [{
+    type: mongoose.Schema.Types.ObjectId,
+    ref: "MerchOrder"
+  }],
+
+
   totalEventRegistrations: {
     type: Number,
     default: 0

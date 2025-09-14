@@ -4,8 +4,8 @@ import { Transaction } from "../models/transaction.model.js";
 import Razorpay from "razorpay";
 import crypto from "crypto";
 import { validateAndApplyCoupon } from "../utils/couponHelper.js";
-import { Product } from "../models/Product.model.js";
 import { MerchOrder } from "../models/MerchOrder.model.js";
+import { Product } from "../models/Product.model.js";
 
 const razorpay = new Razorpay({
   key_id: process.env.RAZORPAY_KEY_ID,
@@ -109,6 +109,7 @@ export const createMerchOrder = async (req, res) => {
 };
 
 // Verify Merch Payment
+// Verify Merch Payment
 export const verifyMerchPayment = async (req, res) => {
   try {
     const { razorpay_order_id, razorpay_payment_id, razorpay_signature, merchOrderData } = req.body;
@@ -118,8 +119,10 @@ export const verifyMerchPayment = async (req, res) => {
       return res.status(400).json({ message: "Missing payment details" });
     }
 
+    // Signature verification
     const sign = razorpay_order_id + "|" + razorpay_payment_id;
-    const expectedSign = crypto.createHmac("sha256", process.env.RAZORPAY_KEY_SECRET)
+    const expectedSign = crypto
+      .createHmac("sha256", process.env.RAZORPAY_KEY_SECRET)
       .update(sign)
       .digest("hex");
 
@@ -127,6 +130,7 @@ export const verifyMerchPayment = async (req, res) => {
       return res.status(400).json({ message: "Invalid signature, payment verification failed" });
     }
 
+    // Fetch payment from Razorpay
     const payment = await razorpay.payments.fetch(razorpay_payment_id);
 
     const transactionStatus = (() => {
@@ -153,19 +157,8 @@ export const verifyMerchPayment = async (req, res) => {
       paymentStatus: transactionStatus,
     });
 
-    await newMerchOrder.save();
-
-    // Update totalPurchased & purchasedBy in products
-    for (let p of merchOrderData.products) {
-      await Product.findByIdAndUpdate(p.product, {
-        $inc: { totalPurchased: p.quantity },
-        $addToSet: { purchasedBy: userId },
-        $addToSet: { orderRef: newMerchOrder._id },
-      });
-    }
-
     // Save Transaction
-    const transactionData = {
+    const transaction = new Transaction({
       userId,
       event: "MerchOrder",
       registrationId: newMerchOrder._id,
@@ -178,14 +171,35 @@ export const verifyMerchPayment = async (req, res) => {
       status: transactionStatus,
       method: payment.method,
       createdAt: payment.created_at ? new Date(payment.created_at * 1000) : undefined,
-    };
+    });
 
-    const transaction = new Transaction(transactionData);
-    await transaction.save();
-
-    // Link order to transaction
     newMerchOrder.transactionId = transaction._id;
-    await newMerchOrder.save();
+
+    await Promise.all([newMerchOrder.save(), transaction.save()]);
+
+    // Update products
+    for (let p of merchOrderData.products) {
+      await Product.findByIdAndUpdate(p.product, {
+        $inc: { totalPurchased: p.quantity },
+        $addToSet: {
+          purchasedBy: { $each: [userId] },
+          orderRef: { $each: [newMerchOrder._id] }
+        }
+      });
+    }
+
+    // Update user
+    await User.findByIdAndUpdate(userId, {
+      $push: { merchOrders: newMerchOrder._id },
+    });
+
+    // Update coupon usage
+    if (merchOrderData.isCouponApplied && merchOrderData.couponCode) {
+      await Coupon.findOneAndUpdate(
+        { code: merchOrderData.couponCode },
+        { $push: { usedBy: { userId, usedAt: new Date() } } }
+      );
+    }
 
     res.status(200).json({
       message: "Merch payment verified & order placed successfully",
