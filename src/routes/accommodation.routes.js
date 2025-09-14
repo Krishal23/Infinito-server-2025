@@ -1,10 +1,10 @@
 import express from "express";
-import { createAccommodation, createAccommodationOrder, getAccommodation, updateMealSlot, verifyAccommodationPayment } from "../controllers/accommodation.controller.js";
+import {  createAccommodationOrder, getAccommodation, updateMealSlot, verifyAccommodationPayment } from "../controllers/accommodation.controller.js";
 import { verifyToken } from "../middlewares/verifyToken.js";
 
 const router = express.Router();
 
-router.post("/",verifyToken, createAccommodation);
+// router.post("/",verifyToken, createAccommodation);
 
 
 router.post("/create-order", verifyToken, createAccommodationOrder);

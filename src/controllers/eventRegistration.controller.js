@@ -491,29 +491,26 @@ export const getEventPlayersById = async (req, res) => {
 };
 
 
-
 export const getUserEventRegistrations = async (req, res) => {
   try {
-    const userId = req.user._id; 
+    const userId = req.user._id;
     if (!userId) {
       return res.status(400).json({ success: false, message: "User ID required" });
     }
 
-    // 1️⃣ Fetch user
     const user = await User.findById(userId);
     if (!user) return res.status(404).json({ success: false, message: "User not found" });
 
     const eventResults = [];
 
-    // 2️⃣ Loop through user's eventRegistrations
     for (const regInfo of user.eventRegistrations) {
       const { event: eventName, registrationId } = regInfo;
 
       const Model = EVENT_MODELS[eventName];
-      if (!Model) continue; // skip if event model not found
+      if (!Model) continue; 
 
       const reg = await Model.findById(registrationId);
-      if (!reg) continue; // skip if registration not found
+      if (!reg) continue; 
 
       const eventData = {
         eventName,
@@ -521,74 +518,106 @@ export const getUserEventRegistrations = async (req, res) => {
         players: []
       };
 
-      // ✅ Add main lead / captain
-      if (reg.leadName || (reg.captain && reg.captain.fullname)) {
-        const lead = reg.leadName ? reg : reg.captain;
-        eventData.players.push({
-          name: lead.fullname || lead.leadName || lead.name || null,
-          email: lead.email || null,
-          phoneNumber: lead.phoneNumber || lead.contactNumber || null,
-          aadharId: lead.aadharId || null
-        });
-      }
+      if (eventName === "athletics") {
+        // Lead
+        if (reg.leadName) {
+          eventData.players.push({
+            name: reg.leadName,
+            email: reg.email || null,
+            phoneNumber: reg.phoneNumber || null,
+            aadharId: reg.aadharId || null
+          });
+        }
 
-      // ✅ Team members
-      if (reg.team && Array.isArray(reg.team.members)) {
-        reg.team.members.forEach(member => {
-          if (member.fullname || member.name) {
-            eventData.players.push({
-              name: member.fullname || member.name,
-              email: member.email || null,
-              phoneNumber: member.phoneNumber || member.contactNumber || null,
-              aadharId: member.aadharId || null
-            });
-          }
-        });
-      }
-
-      // ✅ Players array
-      if (reg.players) {
-        if (Array.isArray(reg.players)) {
-          reg.players.forEach(player => {
-            if (player.fullname || player.name) {
-              eventData.players.push({
-                name: player.fullname || player.name,
-                email: player.email || null,
-                phoneNumber: player.phoneNumber || player.contactNumber || null,
-                aadharId: player.aadharId || null
+        // Relay Teams
+        if (Array.isArray(reg.relayTeams)) {
+          reg.relayTeams.forEach(team => {
+            if (Array.isArray(team.members)) {
+              team.members.forEach(member => {
+                if (member.fullname || member.name) {
+                  eventData.players.push({
+                    name: member.fullname || member.name,
+                    email: member.email || null,
+                    phoneNumber: member.phoneNumber || member.contactNumber || null,
+                    aadharId: member.aadharId || null
+                  });
+                }
               });
             }
           });
-        } else if (typeof reg.players === 'object') {
-          if (reg.players.fullname || reg.players.name) {
-            eventData.players.push({
-              name: reg.players.fullname || reg.players.name,
-              email: reg.players.email || null,
-              phoneNumber: reg.players.phoneNumber || reg.players.contactNumber || null,
-              aadharId: reg.players.aadharId || null
+        }
+
+        // Individual Events (optional metadata)
+        if (Array.isArray(reg.individualEvents) && reg.individualEvents.length > 0) {
+          eventData.individualEvents = reg.individualEvents;
+        }
+
+      } else {
+
+        if (reg.leadName || (reg.captain && reg.captain.fullname)) {
+          const lead = reg.leadName ? reg : reg.captain;
+          eventData.players.push({
+            name: lead.fullname || lead.leadName || lead.name || null,
+            email: lead.email || null,
+            phoneNumber: lead.phoneNumber || lead.contactNumber || null,
+            aadharId: lead.aadharId || null
+          });
+        }
+
+        if (reg.team && Array.isArray(reg.team.members)) {
+          reg.team.members.forEach(member => {
+            if (member.fullname || member.name) {
+              eventData.players.push({
+                name: member.fullname || member.name,
+                email: member.email || null,
+                phoneNumber: member.phoneNumber || member.contactNumber || null,
+                aadharId: member.aadharId || null
+              });
+            }
+          });
+        }
+
+        if (reg.players) {
+          if (Array.isArray(reg.players)) {
+            reg.players.forEach(player => {
+              if (player.fullname || player.name) {
+                eventData.players.push({
+                  name: player.fullname || player.name,
+                  email: player.email || null,
+                  phoneNumber: player.phoneNumber || player.contactNumber || null,
+                  aadharId: player.aadharId || null
+                });
+              }
             });
+          } else if (typeof reg.players === "object") {
+            if (reg.players.fullname || reg.players.name) {
+              eventData.players.push({
+                name: reg.players.fullname || reg.players.name,
+                email: reg.players.email || null,
+                phoneNumber: reg.players.phoneNumber || reg.players.contactNumber || null,
+                aadharId: reg.players.aadharId || null
+              });
+            }
           }
         }
-      }
 
-      // ✅ Partner
-      if (reg.partnerDetails && (reg.partnerDetails.name || reg.partnerDetails.fullname)) {
-        eventData.players.push({
-          name: reg.partnerDetails.fullname || reg.partnerDetails.name,
-          email: reg.partnerDetails.email || null,
-          phoneNumber: reg.partnerDetails.phoneNumber || null,
-          aadharId: reg.partnerDetails.aadharId || null
-        });
-      }
+        if (reg.partnerDetails && (reg.partnerDetails.name || reg.partnerDetails.fullname)) {
+          eventData.players.push({
+            name: reg.partnerDetails.fullname || reg.partnerDetails.name,
+            email: reg.partnerDetails.email || null,
+            phoneNumber: reg.partnerDetails.phoneNumber || null,
+            aadharId: reg.partnerDetails.aadharId || null
+          });
+        }
 
-      // ✅ Coach
-      if (reg.coach && (reg.coach.name || reg.coach.fullname)) {
-        eventData.players.push({
-          name: reg.coach.fullname || reg.coach.name,
-          email: reg.coach.email || null,
-          phoneNumber: reg.coach.phoneNumber || null,
-          aadharId: reg.coach.aadharId || null
-        });
+        if (reg.coach && (reg.coach.name || reg.coach.fullname)) {
+          eventData.players.push({
+            name: reg.coach.fullname || reg.coach.name,
+            email: reg.coach.email || null,
+            phoneNumber: reg.coach.phoneNumber || null,
+            aadharId: reg.coach.aadharId || null
+          });
+        }
       }
 
       eventResults.push(eventData);
@@ -600,6 +629,7 @@ export const getUserEventRegistrations = async (req, res) => {
     return res.status(500).json({ success: false, message: "Server error" });
   }
 };
+
 
 
 

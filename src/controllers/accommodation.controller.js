@@ -1,7 +1,7 @@
 import { Accommodation } from "../models/accommodation.model.js";
 import { EVENT_MODELS } from "../models/eventRegistration.model.js";
 import { User } from "../models/user.model.js";
-import Coupon from "../models/coupon.model.js"; // import coupon model
+import Coupon from "../models/coupon.model.js"; 
 import Razorpay from "razorpay";
 import crypto from "crypto";
 import { validateAndApplyCoupon } from "../utils/couponHelper.js";
@@ -25,85 +25,85 @@ const isValidEventId = async (eventId) => {
 };
 
 
-export const createAccommodation = async (req, res) => {
-  try {
-    const userId = req?.user?._id;
-    if (!userId) return res.status(401).json({ message: "User not logged in" });
+// export const createAccommodation = async (req, res) => {
+//   try {
+//     const userId = req?.user?._id;
+//     if (!userId) return res.status(401).json({ message: "User not logged in" });
 
-    const { eventId, genderCategory, checkInDate, stayDays, players, couponCode } = req.body;
+//     const { eventId, genderCategory, checkInDate, stayDays, players, couponCode } = req.body;
 
-    if (!eventId || !genderCategory || !checkInDate || !stayDays || !players || players.length === 0) {
-      return res.status(400).json({ message: "Missing required fields" });
-    }
+//     if (!eventId || !genderCategory || !checkInDate || !stayDays || !players || players.length === 0) {
+//       return res.status(400).json({ message: "Missing required fields" });
+//     }
 
-    // Check event existence
-    const eventExists = await isValidEventId(eventId);
-    if (!eventExists) return res.status(404).json({ message: "Event not found" });
+//     // Check event existence
+//     const eventExists = await isValidEventId(eventId);
+//     if (!eventExists) return res.status(404).json({ message: "Event not found" });
 
-    // Compute checkout date
-    const checkIn = new Date(checkInDate);
-    const checkOut = new Date(checkIn);
-    checkOut.setDate(checkOut.getDate() + (Number(stayDays) - 1));
+//     // Compute checkout date
+//     const checkIn = new Date(checkInDate);
+//     const checkOut = new Date(checkIn);
+//     checkOut.setDate(checkOut.getDate() + (Number(stayDays) - 1));
 
-    // Fees
-    const accommodationFee = 500 * players.length * stayDays;
+//     // Fees
+//     const accommodationFee = 500 * players.length * stayDays;
 
-    // Coupon logic using DB
-    let couponDiscount = 0;
-    let isCouponApplied = false;
+//     // Coupon logic using DB
+//     let couponDiscount = 0;
+//     let isCouponApplied = false;
 
-    if (couponCode) {
-      const coupon = await Coupon.findOne({ couponTag: couponCode, isLive: true });
-      if (!coupon) {
-        return res.status(400).json({ message: "Invalid or inactive coupon" });
-      }
+//     if (couponCode) {
+//       const coupon = await Coupon.findOne({ couponTag: couponCode, isLive: true });
+//       if (!coupon) {
+//         return res.status(400).json({ message: "Invalid or inactive coupon" });
+//       }
 
-      if (new Date() > coupon.validUpto) {
-        return res.status(400).json({ message: "Coupon expired" });
-      }
+//       if (new Date() > coupon.validUpto) {
+//         return res.status(400).json({ message: "Coupon expired" });
+//       }
 
-      if (coupon.couponType === "flat") {
-        couponDiscount = coupon.discount;
-      } else if (coupon.couponType === "percentage") {
-        couponDiscount = Math.floor((coupon.discount / 100) * (accommodationFee));
-      }
+//       if (coupon.couponType === "flat") {
+//         couponDiscount = coupon.discount;
+//       } else if (coupon.couponType === "percentage") {
+//         couponDiscount = Math.floor((coupon.discount / 100) * (accommodationFee));
+//       }
 
-      isCouponApplied = true;
+//       isCouponApplied = true;
 
-      // Add user to coupon's usedBy
-      coupon.usedBy.push(userId);
-      await coupon.save();
-    }
+//       // Add user to coupon's usedBy
+//       coupon.usedBy.push(userId);
+//       await coupon.save();
+//     }
 
-    // Prepare accommodation object
-    const newAccommodation = new Accommodation({
-      userId,
-      eventId,
-      genderCategory,
-      checkInDate: checkIn,
-      checkOutDate: checkOut,
-      players,
-      accommodationFee,
-      couponCode: couponCode || null,
-      couponDiscount,
-      isCouponApplied,
-      totalAmount: accommodationFee - couponDiscount,
-      createdBy: userId.toString(),
-    });
+//     // Prepare accommodation object
+//     const newAccommodation = new Accommodation({
+//       userId,
+//       eventId,
+//       genderCategory,
+//       checkInDate: checkIn,
+//       checkOutDate: checkOut,
+//       players,
+//       accommodationFee,
+//       couponCode: couponCode || null,
+//       couponDiscount,
+//       isCouponApplied,
+//       totalAmount: accommodationFee - couponDiscount,
+//       createdBy: userId.toString(),
+//     });
 
-    await newAccommodation.save();
+//     await newAccommodation.save();
 
-    await User.findByIdAndUpdate(userId, { $push: { accommodations: newAccommodation._id } });
+//     await User.findByIdAndUpdate(userId, { $push: { accommodations: newAccommodation._id } });
 
-    res.status(201).json({
-      message: "Accommodation booked successfully",
-      accommodation: newAccommodation,
-    });
-  } catch (error) {
-    console.error("Error creating accommodation:", error);
-    res.status(500).json({ message: "Internal server error", error });
-  }
-};
+//     res.status(201).json({
+//       message: "Accommodation booked successfully",
+//       accommodation: newAccommodation,
+//     });
+//   } catch (error) {
+//     console.error("Error creating accommodation:", error);
+//     res.status(500).json({ message: "Internal server error", error });
+//   }
+// };
 
 
 
