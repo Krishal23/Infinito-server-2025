@@ -56,6 +56,7 @@ const accommodationSchema = new mongoose.Schema(
     couponDiscount: { type: Number, default: 0 },
 
     // Payment info
+    transactionId: { type: mongoose.Schema.Types.ObjectId, ref: "Transaction" },
     paymentOrderId: { type: String },
     paymentId: { type: String },
     paymentSignature: { type: String },

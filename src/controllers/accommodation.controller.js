@@ -4,6 +4,8 @@ import { User } from "../models/user.model.js";
 import Coupon from "../models/coupon.model.js"; // import coupon model
 import Razorpay from "razorpay";
 import crypto from "crypto";
+import { validateAndApplyCoupon } from "../utils/couponHelper.js";
+import { Transaction } from "../models/transaction.model.js";
 
 
 
@@ -108,12 +110,12 @@ export const createAccommodation = async (req, res) => {
 
 export const createAccommodationOrder = async (req, res) => {
   try {
-console.log("Razorpay instance created",  process.env.RAZORPAY_KEY_ID ," ",process.env.RAZORPAY_KEY_SECRET);
 
     const userId = req?.user?._id;
     if (!userId) return res.status(401).json({ message: "User not logged in" });
 
     const { eventId, genderCategory, checkInDate, stayDays, players, couponCode } = req.body;
+    console.log(req.body)
 
     if (!eventId || !genderCategory || !checkInDate || !stayDays || !players || players.length === 0) {
       return res.status(400).json({ message: "Missing required fields" });
@@ -137,25 +139,20 @@ console.log("Razorpay instance created",  process.env.RAZORPAY_KEY_ID ," ",proce
 
     let couponDiscount = 0;
     let isCouponApplied = false;
+let appliedCouponCode = null;
 
-    if (couponCode) {
-      const coupon = await Coupon.findOne({ couponTag: couponCode, isLive: true });
-      if (!coupon) return res.status(400).json({ message: "Invalid or inactive coupon" });
-
-      if (new Date() > coupon.validUpto) return res.status(400).json({ message: "Coupon expired" });
-
-      if (coupon.couponType === "flat") {
-        couponDiscount = coupon.discount;
-      } else if (coupon.couponType === "percentage") {
-        couponDiscount = Math.floor((coupon.discount / 100) * (accommodationFee));
-      }
-      isCouponApplied = true;
-
-      coupon.usedBy.push(userId);
-      await coupon.save();
+    try {
+      const result = await validateAndApplyCoupon(couponCode, userId, accommodationFee, "ACCOM");
+      console.log(result)
+      couponDiscount = result.couponDiscount;
+      isCouponApplied = result.isCouponApplied;
+      appliedCouponCode = result.couponCode;
+    } catch (err) {
+      return res.status(400).json({ message: err.message });
     }
 
     const totalAmount = accommodationFee - couponDiscount;
+    console.log(accommodationFee, " - " , couponDiscount, " ",couponCode)
 
 
     // Shorten ObjectId + timestamp
@@ -197,6 +194,8 @@ console.log("Razorpay instance created",  process.env.RAZORPAY_KEY_ID ," ",proce
 };
 
 
+
+
 export const verifyAccommodationPayment = async (req, res) => {
   try {
     const { razorpay_order_id, razorpay_payment_id, razorpay_signature, accommodationData } = req.body;
@@ -216,6 +215,24 @@ export const verifyAccommodationPayment = async (req, res) => {
     if (razorpay_signature !== expectedSign) {
       return res.status(400).json({ message: "Invalid signature, payment verification failed" });
     }
+
+    // ---- Fetch full payment details from Razorpay ----
+    const payment = await razorpay.payments.fetch(razorpay_payment_id);
+
+    // ---- Map Razorpay status to your enum ----
+    const transactionStatus = (() => {
+      switch (payment.status.toLowerCase()) {
+        case "created":
+        case "authorized":
+          return "PENDING";
+        case "captured":
+          return "SUCCESS";
+        case "failed":
+          return "FAILED";
+        default:
+          return "PENDING";
+      }
+    })();
 
     // ---- Compute checkout date ----
     const checkIn = new Date(accommodationData.checkInDate);
@@ -249,15 +266,55 @@ export const verifyAccommodationPayment = async (req, res) => {
       $push: { accommodations: newAccommodation._id },
     });
 
+    // ---- Save to global Transaction collection ----
+    const transactionData = {
+      userId,
+      event: "Accommodation",
+      registrationId: newAccommodation._id,
+      orderId: payment.order_id,
+      paymentId: payment.id,
+      signature: razorpay_signature,
+      amount: payment.amount, // paise
+      registrationFee: payment.amount / 100, // rupees
+      currency: payment.currency,
+      status: transactionStatus,
+      method: payment.method,
+      createdAt: payment.created_at ? new Date(payment.created_at * 1000) : undefined,
+    };
+
+    // Method-specific details
+    if (payment.method === "card" && payment.card) {
+      transactionData.card = {
+        last4: payment.card.last4,
+        network: payment.card.network,
+        issuer: payment.card.issuer,
+        type: payment.card.type,
+      };
+    } else if (payment.method === "upi") {
+      transactionData.upiVpa = payment.vpa || null;
+      transactionData.upiTransactionId = payment.acquirer_data?.rrn || null;
+    } else if (payment.method === "wallet") {
+      transactionData.wallet = payment.wallet || null;
+    }
+
+    const transaction = new Transaction(transactionData);
+    await transaction.save();
+
+    // ---- Link Accommodation to Transaction ----
+    newAccommodation.transactionId = transaction._id;
+    await newAccommodation.save();
+
     res.status(200).json({
       message: "Payment verified & accommodation booked successfully",
       accommodation: newAccommodation,
+      transaction,
     });
   } catch (error) {
     console.error("Error verifying accommodation payment:", error);
     res.status(500).json({ message: "Internal server error" });
   }
 };
+
 
 
 
