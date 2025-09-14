@@ -12,22 +12,13 @@ const razorpay = new Razorpay({
   key_secret: process.env.RAZORPAY_KEY_SECRET,
 });
 
-// Create Merch Order + Razorpay Order
+// Create Merch Order 
 export const createMerchOrder = async (req, res) => {
   try {
     const userId = req?.user?._id;
     if (!userId) return res.status(401).json({ message: "User not logged in" });
 
-    let {
-      products, // [{ productId, quantity }]
-      name,
-      adhaarId,
-      email,
-      address,
-      pincode,
-      gender,
-      couponCode,
-    } = req.body;
+    let { products, name, adhaarId, email, address, pincode, gender, couponCode } = req.body;
 
     if (!products || products.length === 0) {
       return res.status(400).json({ message: "No products selected" });
@@ -46,27 +37,32 @@ export const createMerchOrder = async (req, res) => {
     let totalAmount = 0;
     const merchProducts = products.map(p => {
       const prod = productDocs.find(pd => pd._id.toString() === p.productId);
-      const priceAtPurchase = prod.price;
       const quantity = p.quantity || 1;
-      totalAmount += priceAtPurchase * quantity;
+      totalAmount += prod.price * quantity;
       return {
         product: prod._id,
         quantity,
-        priceAtPurchase,
+        priceAtPurchase: prod.price,
       };
     });
 
-    // Coupon
+    
     let couponDiscount = 0;
     let isCouponApplied = false;
     let appliedCouponCode = null;
+    let appliedCoupon = null;
 
     if (couponCode) {
-      const result = await validateAndApplyCoupon(couponCode, userId, totalAmount, "MERCH");
-      couponDiscount = result.couponDiscount;
-      isCouponApplied = result.isCouponApplied;
-      appliedCouponCode = result.couponCode;
-      totalAmount -= couponDiscount;
+      try {
+        const result = await validateAndApplyCoupon(couponCode, userId, totalAmount, "MERCH");
+        couponDiscount = result.couponDiscount;
+        isCouponApplied = result.isCouponApplied;
+        appliedCouponCode = result.couponCode;
+        appliedCoupon = result.appliedCoupon;
+        totalAmount -= couponDiscount;
+      } catch (err) {
+        return res.status(400).json({ message: err.message });
+      }
     }
 
     // Razorpay receipt
@@ -109,7 +105,6 @@ export const createMerchOrder = async (req, res) => {
 };
 
 // Verify Merch Payment
-// Verify Merch Payment
 export const verifyMerchPayment = async (req, res) => {
   try {
     const { razorpay_order_id, razorpay_payment_id, razorpay_signature, merchOrderData } = req.body;
@@ -121,10 +116,7 @@ export const verifyMerchPayment = async (req, res) => {
 
     // Signature verification
     const sign = razorpay_order_id + "|" + razorpay_payment_id;
-    const expectedSign = crypto
-      .createHmac("sha256", process.env.RAZORPAY_KEY_SECRET)
-      .update(sign)
-      .digest("hex");
+    const expectedSign = crypto.createHmac("sha256", process.env.RAZORPAY_KEY_SECRET).update(sign).digest("hex");
 
     if (razorpay_signature !== expectedSign) {
       return res.status(400).json({ message: "Invalid signature, payment verification failed" });
@@ -182,23 +174,22 @@ export const verifyMerchPayment = async (req, res) => {
       await Product.findByIdAndUpdate(p.product, {
         $inc: { totalPurchased: p.quantity },
         $addToSet: {
-          purchasedBy: { $each: [userId] },
-          orderRef: { $each: [newMerchOrder._id] }
-        }
+          purchasedBy: userId,
+          orderRef: newMerchOrder._id,
+        },
       });
     }
 
     // Update user
-    await User.findByIdAndUpdate(userId, {
-      $push: { merchOrders: newMerchOrder._id },
-    });
+    await User.findByIdAndUpdate(userId, { $push: { merchOrders: newMerchOrder._id } });
 
     // Update coupon usage
     if (merchOrderData.isCouponApplied && merchOrderData.couponCode) {
-      await Coupon.findOneAndUpdate(
-        { code: merchOrderData.couponCode },
-        { $push: { usedBy: { userId, usedAt: new Date() } } }
-      );
+      const coupon = await Coupon.findOne({ couponTag: merchOrderData.couponCode });
+      if (coupon) {
+        coupon.usedBy.push({ userId, usedAt: new Date() });
+        await coupon.save();
+      }
     }
 
     res.status(200).json({

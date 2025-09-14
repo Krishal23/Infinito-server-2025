@@ -1,7 +1,7 @@
 import { Accommodation } from "../models/accommodation.model.js";
 import { EVENT_MODELS } from "../models/eventRegistration.model.js";
 import { User } from "../models/user.model.js";
-import Coupon from "../models/coupon.model.js"; 
+import Coupon from "../models/coupon.model.js";
 import Razorpay from "razorpay";
 import crypto from "crypto";
 import { validateAndApplyCoupon } from "../utils/couponHelper.js";
@@ -136,23 +136,25 @@ export const createAccommodationOrder = async (req, res) => {
 
     // ---- Fee Calculation ----
     const accommodationFee = 500 * players.length * stayDays;
-
     let couponDiscount = 0;
     let isCouponApplied = false;
-let appliedCouponCode = null;
+    let appliedCouponCode = null;
+    let appliedCoupon = null;
+    console.log(couponCode," rhe")
 
     try {
       const result = await validateAndApplyCoupon(couponCode, userId, accommodationFee, "ACCOM");
-      console.log(result)
       couponDiscount = result.couponDiscount;
       isCouponApplied = result.isCouponApplied;
       appliedCouponCode = result.couponCode;
+      appliedCoupon = result.appliedCoupon;
     } catch (err) {
       return res.status(400).json({ message: err.message });
     }
 
+
     const totalAmount = accommodationFee - couponDiscount;
-    console.log(accommodationFee, " - " , couponDiscount, " ",couponCode)
+    console.log(accommodationFee, " - ", couponDiscount, " ", couponCode)
 
 
     // Shorten ObjectId + timestamp
@@ -259,6 +261,15 @@ export const verifyAccommodationPayment = async (req, res) => {
       status: "confirmed",
       createdBy: userId.toString(),
     });
+
+    if (accommodationData.couponCode) {
+  const appliedCoupon = await Coupon.findOne({ couponTag: accommodationData.couponCode });
+  if (appliedCoupon) {
+    appliedCoupon.usedBy.push({ userId, usedAt: new Date() });
+    await appliedCoupon.save();
+  }
+}
+
 
     await newAccommodation.save();
 
