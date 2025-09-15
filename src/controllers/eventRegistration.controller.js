@@ -56,8 +56,34 @@ export const createEventOrder = (eventKey) => {
                 });
             }
 
+            let amount;
+            console.log(eventKey)
+
+            if (eventKey === 'chess') {
+                // Chess-specific fee calculation
+                const registrationData = req.body;
+                
+                // Total players = 1 (for the captain) + the number of players in the array
+                const totalPlayers = 1 + (registrationData.players?.length || 0);
+
+                // Fetch the per-player fee from your config
+                const chessFeeConfig = EVENT_FEES.chess;
+                if (!chessFeeConfig || typeof chessFeeConfig.men === 'undefined') {
+                    return next(new ErrorHandler("Chess per-player fee is not configured correctly.", 500));
+                }
+                const perPlayerFee = chessFeeConfig.men;
+
+                // Calculate the final amount
+                amount = totalPlayers * perPlayerFee;
+
+            } else {
+                // Existing logic for all other events
+                const category = req?.body?.category || "open";
+                amount = getEventFee(eventKey, category);
+            }
+
             const category = req?.body?.category || "open";
-            const amount = getEventFee(eventKey, category);
+            // const amount = getEventFee(eventKey, category);
             const receipt = `${eventKey}_${userId.toString().slice(-10)}_${Date.now().toString().slice(-6)}`;
             const order = await createOrder(amount, receipt);
 
