@@ -6,12 +6,13 @@ import crypto from "crypto";
 import { validateAndApplyCoupon } from "../utils/couponHelper.js";
 import { MerchOrder } from "../models/MerchOrder.model.js";
 import { Product } from "../models/Product.model.js";
+import { sendMerchOrderEmail } from "../utils/emails/templates/merchMail.js";
 
 const razorpay = new Razorpay({
   key_id: process.env.RAZORPAY_KEY_ID,
   key_secret: process.env.RAZORPAY_KEY_SECRET,
 });
-const deliveryCharge=20;
+const deliveryCharge = 20;
 
 // Create Merch Order 
 export const createMerchOrder = async (req, res) => {
@@ -19,9 +20,9 @@ export const createMerchOrder = async (req, res) => {
     const userId = req?.user?._id;
     if (!userId) return res.status(401).json({ message: "User not logged in" });
 
-    let { products, name, adhaarId, email, address,delivery, pincode, phoneNumber, gender, couponCode } = req.body;
+    let { products, name, adhaarId, email, address, delivery, pincode, phoneNumber, gender, couponCode } = req.body;
     // console.log(req.body)
-    if(!delivery) delivery=false;
+    if (!delivery) delivery = false;
 
     if (!products || products.length === 0) {
       return res.status(400).json({ message: "No products selected" });
@@ -46,7 +47,7 @@ export const createMerchOrder = async (req, res) => {
         product: prod._id,
         quantity,
         priceAtPurchase: prod.price,
-        size: p.size || "M",   
+        size: p.size || "M",
       };
     });
 
@@ -68,7 +69,7 @@ export const createMerchOrder = async (req, res) => {
         return res.status(400).json({ message: err.message });
       }
     }
-    if(delivery) totalAmount += deliveryCharge; 
+    if (delivery) totalAmount += deliveryCharge;
 
     // Razorpay receipt
     const shortUserId = userId.toString().slice(-10);
@@ -201,6 +202,13 @@ export const verifyMerchPayment = async (req, res) => {
         await coupon.save();
       }
     }
+
+    // Fetch user details
+    const user = await User.findById(userId).select("email fullname");
+
+    // Send confirmation email
+    await sendMerchOrderEmail(newMerchOrder, user, transaction);
+
 
     res.status(200).json({
       message: "Merch payment verified & order placed successfully",

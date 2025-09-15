@@ -6,6 +6,7 @@ import Razorpay from "razorpay";
 import crypto from "crypto";
 import { validateAndApplyCoupon } from "../utils/couponHelper.js";
 import { Transaction } from "../models/transaction.model.js";
+import { sendAccommodationBookingEmail } from "../utils/emails/templates/accommodationMail.js";
 
 
 
@@ -140,7 +141,7 @@ export const createAccommodationOrder = async (req, res) => {
     let isCouponApplied = false;
     let appliedCouponCode = null;
     let appliedCoupon = null;
-    console.log(couponCode," rhe")
+    console.log(couponCode, " rhe")
 
     try {
       const result = await validateAndApplyCoupon(couponCode, userId, accommodationFee, "ACCOM");
@@ -263,12 +264,12 @@ export const verifyAccommodationPayment = async (req, res) => {
     });
 
     if (accommodationData.couponCode) {
-  const appliedCoupon = await Coupon.findOne({ couponTag: accommodationData.couponCode });
-  if (appliedCoupon) {
-    appliedCoupon.usedBy.push({ userId, usedAt: new Date() });
-    await appliedCoupon.save();
-  }
-}
+      const appliedCoupon = await Coupon.findOne({ couponTag: accommodationData.couponCode });
+      if (appliedCoupon) {
+        appliedCoupon.usedBy.push({ userId, usedAt: new Date() });
+        await appliedCoupon.save();
+      }
+    }
 
 
     await newAccommodation.save();
@@ -314,6 +315,15 @@ export const verifyAccommodationPayment = async (req, res) => {
     // ---- Link Accommodation to Transaction ----
     newAccommodation.transactionId = transaction._id;
     await newAccommodation.save();
+
+    // Fetch user details
+    const user = await User.findById(userId).select("email fullname");
+
+    console.log("Accommodation booked & payment verified:", { newAccommodation, transaction });
+
+    // Send confirmation email
+    await sendAccommodationBookingEmail(newAccommodation, user, payment, transaction);
+
 
     res.status(200).json({
       message: "Payment verified & accommodation booked successfully",
