@@ -20,10 +20,12 @@ const productSchema = new Schema(
       type: Boolean,
       default: true,
     },
+    sizeAvailable: {
+      type: [String],
+      enum: ["S", "M", "L", "XL", "XXL"],
+    },
     description: {
       type: String,
-      // required: [true, "Product description is required"],
-      // maxlength: 500,
     },
     images: [
       {

@@ -11,6 +11,7 @@ const razorpay = new Razorpay({
   key_id: process.env.RAZORPAY_KEY_ID,
   key_secret: process.env.RAZORPAY_KEY_SECRET,
 });
+const deliveryCharge=20;
 
 // Create Merch Order 
 export const createMerchOrder = async (req, res) => {
@@ -18,7 +19,9 @@ export const createMerchOrder = async (req, res) => {
     const userId = req?.user?._id;
     if (!userId) return res.status(401).json({ message: "User not logged in" });
 
-    let { products, name, adhaarId, email, address, pincode, gender, couponCode } = req.body;
+    let { products, name, adhaarId, email, address,delivery, pincode, phoneNumber, gender, couponCode } = req.body;
+    // console.log(req.body)
+    if(!delivery) delivery=false;
 
     if (!products || products.length === 0) {
       return res.status(400).json({ message: "No products selected" });
@@ -43,10 +46,11 @@ export const createMerchOrder = async (req, res) => {
         product: prod._id,
         quantity,
         priceAtPurchase: prod.price,
+        size: p.size || "M",   
       };
     });
 
-    
+
     let couponDiscount = 0;
     let isCouponApplied = false;
     let appliedCouponCode = null;
@@ -64,12 +68,16 @@ export const createMerchOrder = async (req, res) => {
         return res.status(400).json({ message: err.message });
       }
     }
+    if(delivery) totalAmount += deliveryCharge; 
 
     // Razorpay receipt
     const shortUserId = userId.toString().slice(-10);
     const timestamp = Date.now().toString().slice(-10);
     const receipt = `merch_${shortUserId}_${timestamp}`;
 
+
+
+    console.log(totalAmount, couponDiscount, isCouponApplied, appliedCouponCode);
     // Create Razorpay Order
     const order = await razorpay.orders.create({
       amount: totalAmount * 100, // paise
@@ -90,6 +98,8 @@ export const createMerchOrder = async (req, res) => {
         adhaarId,
         email,
         address,
+        phoneNumber,
+        delivery,
         pincode,
         gender,
         isCouponApplied,

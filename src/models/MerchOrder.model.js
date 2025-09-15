@@ -20,6 +20,8 @@ const merchOrderSchema = new Schema(
     address: { type: String, required: true },
     pincode: { type: String, required: true },
     gender: { type: String, enum: ["male", "female", "other"], required: true },
+    phoneNumber: { type: String, required: true },
+    delivery:{type: Boolean, default: false},
 
     // Purchased merch products
     products: [
@@ -31,6 +33,7 @@ const merchOrderSchema = new Schema(
         },
         quantity: { type: Number, default: 1, min: 1 },
         priceAtPurchase: { type: Number, required: true },
+        size:{ type: String, enum: ["S", "M", "L", "XL", "XXL"], default: "M" },
       },
     ],
 
