@@ -177,6 +177,13 @@ function createSchema(fields, { uniqueByUser = true, esports = false } = {}) {
 // 1. Athletics
 const athleticsSchema = createSchema({
   userId: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
+  coach: {
+    fullname: { type: String},
+    email: { type: String },
+    phoneNumber: { type: String },
+    aadharId: { type: String }
+
+  },
 
   category: { type: String, enum: ["men", "women"], required: true },
   individualEvents: { type: [String], default: [] },

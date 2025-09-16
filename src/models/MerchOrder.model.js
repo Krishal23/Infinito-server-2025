@@ -15,7 +15,7 @@ const merchOrderSchema = new Schema(
       first: { type: String, required: true },
       last: { type: String, required: true },
     },
-    adhaarId: { type: String, required: true },
+    adhaarId: { type: String, required: false },
     email: { type: String, required: true },
     address: { type: String, required: true },
     pincode: { type: String, required: true },

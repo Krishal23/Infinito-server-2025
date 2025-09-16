@@ -1,5 +1,15 @@
 import mongoose from "mongoose";
 
+const cardSchema = new mongoose.Schema(
+  {
+    last4: { type: String },
+    network: { type: String },
+    issuer: { type: String },
+    type: { type: String }, // debit/credit
+  },
+  { _id: false } 
+);
+
 const transactionSchema = new mongoose.Schema({
   userId: { type: mongoose.Schema.Types.ObjectId, ref: "User", required: true },
   event: { type: String, required: true },
@@ -18,12 +28,7 @@ const transactionSchema = new mongoose.Schema({
   upiVpa: { type: String },                  // user@oksbi, etc.
   upiTransactionId: { type: String },        // bank UPI txn id (RRN)
   wallet: { type: String },                  // paytm, phonepe wallet name
-  card: {
-    last4: String,
-    network: String,
-    issuer: String,
-    type: String, // debit/credit
-  },
+  card: cardSchema,
 
   status: {
     type: String,

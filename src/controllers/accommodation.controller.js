@@ -136,7 +136,7 @@ export const createAccommodationOrder = async (req, res) => {
 
 
     // ---- Fee Calculation ----
-    const accommodationFee = 500 * players.length * stayDays;
+    const accommodationFee = 250 * players.length * stayDays;
     let couponDiscount = 0;
     let isCouponApplied = false;
     let appliedCouponCode = null;
