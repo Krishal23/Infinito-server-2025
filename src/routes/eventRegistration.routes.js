@@ -58,7 +58,7 @@ EVENTS.forEach((event) => {
     );
     
     router.get("/all-players", getAllEventPlayers);
-    router.get("/event-players", getAllEventPlayers);
+    router.get("/event-players", getUserEventRegistrations);
     router.get("/my-event-players", verifyToken,getUserEventRegistrations);
     
 });

@@ -40,10 +40,10 @@ const collegeSchema = {
 function createTeamSportSchema({ withViceCaptain = true, withSubstitutes = false, categoryRequired = true } = {}) {
   const schema = new mongoose.Schema({
     userId: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
-    ...(categoryRequired ? { category: { type: String, enum: ["Men", "Women"] } } : {}),
+    ...(categoryRequired ? { category: { type: String, enum: ["Men", "Women"], required: true } } : {}),
     ...collegeSchema,
-    captain: { type: teamMemberSchema, },
-    ...(withViceCaptain ? { viceCaptain: { type: teamMemberSchema} } : {}),
+    captain: { type: teamMemberSchema, required: true },
+    ...(withViceCaptain ? { viceCaptain: { type: teamMemberSchema, required: true } } : {}),
     players: [teamMemberSchema],
     ...(withSubstitutes ? { substitutes: [teamMemberSchema] } : {}),
     coach: coachSchema,
@@ -75,6 +75,10 @@ const esportsPlayerSchema = new mongoose.Schema({
   aadharId: { type: String, required: true },
   ign: { type: String }
 }, { _id: false });
+
+
+
+
 
 
 function createEsportsSchema(gameName) {

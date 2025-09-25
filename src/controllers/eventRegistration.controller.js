@@ -109,6 +109,8 @@ export const createEventOrder = (eventKey) => {
   });
 };
 
+
+
 export const verifyAndRegister = (EventModel, eventKey) => {
   return CatchAsyncErrror(async (req, res, next) => {
     try {
@@ -120,7 +122,9 @@ export const verifyAndRegister = (EventModel, eventKey) => {
         registrationData,
       } = req.body;
 
+      console.log(registrationData, "registration data")
 
+      // Verify Razorpay signature
       const body = `${razorpay_order_id}|${razorpay_payment_id}`;
       const expected = crypto
         .createHmac("sha256", process.env.RAZORPAY_KEY_SECRET)
@@ -131,24 +135,61 @@ export const verifyAndRegister = (EventModel, eventKey) => {
         return next(new ErrorHandler("Payment verification failed", 400));
       }
 
-
+      // Ensure txn exists
       const txn = await Transaction.findOne({
         userId,
         orderId: razorpay_order_id,
         status: "PENDING",
       });
+      if (!txn) return next(new ErrorHandler("No pending transaction found", 404));
 
-      if (!txn) {
-        return next(new ErrorHandler("No pending transaction found", 404));
-      }
       const payment = await razorpay.payments.fetch(razorpay_payment_id);
-      // console.log(registrationData)
 
-      const registration = await EventModel.create({
-        ...registrationData,
-        coach: registrationData.coachDetails,
-        userId,
-        category: registrationData?.category || txn.category || "open",
+      // ---------------- Mapping Registration Data ----------------
+      let mappedData = { userId };
+
+      if (["badminton", "basketball", "chess", "cricket", "football", "kabaddi",
+        "lawn_tennis", "squash", "table_tennis", "volleyball",
+        "weight_lifting", "power_lifting"].includes(eventKey)) {
+        mappedData = {
+          userId,
+          category: registrationData?.category || txn.category || "open",
+          collegeName: registrationData?.collegeName,
+          collegeAddress: registrationData?.collegeAddress,
+          captain: registrationData?.captain,
+          viceCaptain: registrationData?.viceCaptain,
+          players: registrationData?.players || [],
+          substitutes: registrationData?.substitutes || [],
+          coach: registrationData?.coachDetails || registrationData?.coach,
+        };
+      }
+      else if (eventKey === "athletics") {
+        mappedData = {
+          userId,
+          lead: {
+            fullname: registrationData?.leadName,
+            email: registrationData?.email,
+            phoneNumber: registrationData?.phoneNumber,
+            aadharId: registrationData?.aadharId
+          },
+          category: registrationData?.category || txn.category || "men",
+          coach: registrationData?.coachDetails,
+          individualEvents: registrationData?.individualEvents || [],
+          relayTeams: registrationData?.relayTeams || [],
+        };
+      }
+      else if (["bgmi", "freefire", "codm", "valorant", "clash_royale"].includes(eventKey)) {
+        mappedData = {
+          userId,
+          teamName: registrationData?.teamName,
+          teamLeader: registrationData?.teamLeader,
+          players: registrationData?.players || [],
+          queries: registrationData?.queries || "",
+        };
+      }
+
+      // Add payment info
+      Object.assign(mappedData, {
         registrationFee: txn.amount / 100,
         paymentOrderId: razorpay_order_id,
         paymentId: razorpay_payment_id,
@@ -156,15 +197,16 @@ export const verifyAndRegister = (EventModel, eventKey) => {
         paymentStatus: "paid",
         status: "confirmed",
         transaction: txn._id,
-        
       });
-      
-      // console.log(registration, " ghjnkm")
+
+      const registration = await EventModel.create(mappedData);
+      console.log(registration, "new registration")
+
+      // ---------------- Update Transaction ----------------
       txn.paymentId = razorpay_payment_id;
       txn.signature = razorpay_signature;
       txn.status = "SUCCESS";
       txn.registrationId = registration._id;
-
       txn.registrationFee = txn.amount / 100;
       txn.method = payment.method;
       txn.upiVpa = payment.upi?.vpa || null;
@@ -179,9 +221,9 @@ export const verifyAndRegister = (EventModel, eventKey) => {
           type: payment.card.type,
         }
         : null;
-
       await txn.save();
 
+      // ---------------- Update User ----------------
       await User.findByIdAndUpdate(userId, {
         $push: {
           eventRegistrations: {
@@ -192,15 +234,15 @@ export const verifyAndRegister = (EventModel, eventKey) => {
         },
         $inc: { totalEventRegistrations: 1 },
       });
-      const user = await User.findById(userId).select("email fullname");
 
+      // Send confirmation mail
+      const user = await User.findById(userId).select("email fullname");
       const enrichedData = {
-        ...registrationData,
+        ...mappedData,
         fullname: user?.fullname || user.username,
         email: user?.email,
-        amount: (txn.amount || 0)
+        amount: (txn.amount || 0),
       };
-
       await sendEventRegistrationEmail(
         enrichedData,
         eventKey,
@@ -215,7 +257,7 @@ export const verifyAndRegister = (EventModel, eventKey) => {
         registration,
       });
     } catch (err) {
-      console.log(err)
+      console.log(err);
       return next(new ErrorHandler(err.message, 500));
     }
   });
@@ -223,7 +265,211 @@ export const verifyAndRegister = (EventModel, eventKey) => {
 
 
 
+export const getUserEventRegistrations = async (req, res) => {
+  try {
+    const userId = req.user._id;
+    if (!userId) return res.status(400).json({ success: false, message: "User ID required" });
+
+    const user = await User.findById(userId);
+    if (!user) return res.status(404).json({ success: false, message: "User not found" });
+
+    const eventResults = [];
+
+    for (const regInfo of user.eventRegistrations) {
+      const { event: eventName, registrationId } = regInfo;
+      const Model = EVENT_MODELS[eventName];
+      if (!Model) continue;
+
+      const reg = await Model.findById(registrationId);
+      if (!reg) continue;
+
+      const eventData = {
+        eventName,
+        eventId: reg._id,
+        players: []
+      };
+
+      // --- Helper function to add a member to players array ---
+      const addMember = (member) => {
+        if (!member) return;
+        const name = member.fullname || member.leadName || member.name;
+        if (!name) return;
+        eventData.players.push({
+          name,
+          email: member.email || null,
+          phoneNumber: member.phoneNumber || member.contactNumber || null,
+          aadharId: member.aadharId || null,
+        });
+      };
+
+      // Add lead/captain
+      if (reg.lead) addMember(reg.lead);
+      if (reg.captain) addMember(reg.captain);
+      if (reg.viceCaptain) addMember(reg.viceCaptain);
+      if (reg.teamLeader) addMember(reg.teamLeader);
+      if (reg.partnerDetails) addMember(reg.partnerDetails);
+
+      // Add players
+      if (Array.isArray(reg.players)) {
+        reg.players.forEach(addMember);
+      } else if (typeof reg.players === "object") {
+        addMember(reg.players);
+      }
+
+      // Add substitutes if exist
+      if (Array.isArray(reg.substitutes)) {
+        reg.substitutes.forEach(addMember);
+      }
+
+      // Add coach
+      addMember(reg.coach);
+
+      // Add relay team members (for athletics)
+      if (Array.isArray(reg.relayTeams)) {
+        reg.relayTeams.forEach(team => {
+          if (Array.isArray(team.members)) {
+            team.members.forEach(addMember);
+          }
+        });
+      }
+
+      // Optional metadata
+      if (Array.isArray(reg.individualEvents) && reg.individualEvents.length > 0) {
+        eventData.individualEvents = reg.individualEvents;
+      }
+
+      eventResults.push(eventData);
+    }
+
+    return res.json({ success: true, data: eventResults });
+
+  } catch (err) {
+    console.error("Error fetching user event registrations:", err);
+    return res.status(500).json({ success: false, message: "Server error" });
+  }
+};
+
+
+
+
+// export const verifyAndRegister = (EventModel, eventKey) => {
+//   return CatchAsyncErrror(async (req, res, next) => {
+//     try {
+//       const userId = req.user._id;
+//       const {
+//         razorpay_order_id,
+//         razorpay_payment_id,
+//         razorpay_signature,
+//         registrationData,
+//       } = req.body;
+
+
+//       const body = `${razorpay_order_id}|${razorpay_payment_id}`;
+//       const expected = crypto
+//         .createHmac("sha256", process.env.RAZORPAY_KEY_SECRET)
+//         .update(body)
+//         .digest("hex");
+
+//       if (expected !== razorpay_signature) {
+//         return next(new ErrorHandler("Payment verification failed", 400));
+//       }
+
+
+//       const txn = await Transaction.findOne({
+//         userId,
+//         orderId: razorpay_order_id,
+//         status: "PENDING",
+//       });
+
+//       if (!txn) {
+//         return next(new ErrorHandler("No pending transaction found", 404));
+//       }
+//       const payment = await razorpay.payments.fetch(razorpay_payment_id);
+//       // console.log(registrationData)
+
+//       const registration = await EventModel.create({
+//         ...registrationData,
+//         coach: registrationData.coachDetails,
+//         userId,
+//         category: registrationData?.category || txn.category || "open",
+//         registrationFee: txn.amount / 100,
+//         paymentOrderId: razorpay_order_id,
+//         paymentId: razorpay_payment_id,
+//         paymentSignature: razorpay_signature,
+//         paymentStatus: "paid",
+//         status: "confirmed",
+//         transaction: txn._id,
+
+//       });
+
+//       // console.log(registration, " ghjnkm")
+//       txn.paymentId = razorpay_payment_id;
+//       txn.signature = razorpay_signature;
+//       txn.status = "SUCCESS";
+//       txn.registrationId = registration._id;
+
+//       txn.registrationFee = txn.amount / 100;
+//       txn.method = payment.method;
+//       txn.upiVpa = payment.upi?.vpa || null;
+//       txn.upiTransactionId =
+//         payment.acquirer_data?.upi_transaction_id || payment.acquirer_data?.rrn || null;
+//       txn.wallet = payment.wallet || null;
+//       txn.card = payment.card
+//         ? {
+//           last4: payment.card.last4,
+//           network: payment.card.network,
+//           issuer: payment.card.issuer,
+//           type: payment.card.type,
+//         }
+//         : null;
+
+//       await txn.save();
+
+//       await User.findByIdAndUpdate(userId, {
+//         $push: {
+//           eventRegistrations: {
+//             event: toEventKey(eventKey),
+//             registrationId: registration._id,
+//             status: "success",
+//           },
+//         },
+//         $inc: { totalEventRegistrations: 1 },
+//       });
+//       const user = await User.findById(userId).select("email fullname");
+
+//       const enrichedData = {
+//         ...registrationData,
+//         fullname: user?.fullname || user.username,
+//         email: user?.email,
+//         amount: (txn.amount || 0)
+//       };
+
+//       await sendEventRegistrationEmail(
+//         enrichedData,
+//         eventKey,
+//         razorpay_payment_id,
+//         razorpay_order_id,
+//         txn
+//       );
+
+//       return res.status(200).json({
+//         success: true,
+//         message: `Payment verified & registration completed for ${toEventKey(eventKey)}`,
+//         registration,
+//       });
+//     } catch (err) {
+//       console.log(err)
+//       return next(new ErrorHandler(err.message, 500));
+//     }
+//   });
+// };
+
+
+
 // Get Registrations for a specific event
+
+
+
 export const getEventRegistrations = (eventKey) => {
   return CatchAsyncErrror(async (req, res, next) => {
     const key = String(eventKey).toLowerCase().replace(/\s+/g, "_");
@@ -323,6 +569,7 @@ export const getRegisteredEvents = CatchAsyncErrror(async (req, res, next) => {
 export const getAllEventPlayers = async (req, res) => {
   try {
     const results = [];
+    console.log("Hello")
 
     for (const [eventName, Model] of Object.entries(EVENT_MODELS)) {
       const registrations = await Model.find();
@@ -407,6 +654,7 @@ export const getAllEventPlayers = async (req, res) => {
         results.push(eventData);
       });
     }
+    console.log(results, "all players")
 
     return res.json({ success: true, data: results });
   } catch (err) {
@@ -528,154 +776,158 @@ export const getEventPlayersById = async (req, res) => {
 };
 
 
-export const getUserEventRegistrations = async (req, res) => {
-  try {
-    const userId = req.user._id;
-    if (!userId) {
-      return res.status(400).json({ success: false, message: "User ID required" });
-    }
+// export const getUserEventRegistrations = async (req, res) => {
+//   try {
+//     console.log("HELLO")
+//     const userId = req.user._id;
+//     if (!userId) {
+//       return res.status(400).json({ success: false, message: "User ID required" });
+//     }
 
-    const user = await User.findById(userId);
-    if (!user) return res.status(404).json({ success: false, message: "User not found" });
+//     const user = await User.findById(userId);
+//     if (!user) return res.status(404).json({ success: false, message: "User not found" });
 
-    const eventResults = [];
+//     const eventResults = [];
 
-    for (const regInfo of user.eventRegistrations) {
-      const { event: eventName, registrationId } = regInfo;
+//     for (const regInfo of user.eventRegistrations) {
+//       const { event: eventName, registrationId } = regInfo;
 
-      const Model = EVENT_MODELS[eventName];
-      if (!Model) continue;
+//       const Model = EVENT_MODELS[eventName];
+//       if (!Model) continue;
 
-      const reg = await Model.findById(registrationId);
-      if (!reg) continue;
+//       const reg = await Model.findById(registrationId);
+//       console.log(reg, "reg details")
+//       if (!reg) continue;
 
-      const eventData = {
-        eventName,
-        eventId: reg._id,
-        players: []
-      };
-      // console.log(reg, "vfgbhj")
+//       const eventData = {
+//         eventName,
+//         eventId: reg._id,
+//         players: []
+//       };
+//       // console.log(reg, "vfgbhj")
 
-      if (eventName === "athletics") {
-        // Lead
-        if (reg.leadName) {
-          eventData.players.push({
-            name: reg.leadName,
-            email: reg.email || null,
-            phoneNumber: reg.phoneNumber || null,
-            aadharId: reg.aadharId || null
-          });
-        }
+//       if (eventName === "athletics") {
+//         // Lead
+//         if (reg.leadName) {
+//           eventData.players.push({
+//             name: reg.leadName,
+//             email: reg.email || null,
+//             phoneNumber: reg.phoneNumber || null,
+//             aadharId: reg.aadharId || null
+//           });
+//         }
 
-        if (reg.coach) {
-          eventData.players.push({
-            name: reg.coach.fullname,
-            email: reg.coach.email,
-            phoneNumber: reg.coach.phoneNumber,
-            aadharId: reg.coach.aadharId
-          });
-        }
+//         if (reg.coach) {
+//           eventData.players.push({
+//             name: reg.coach.fullname,
+//             email: reg.coach.email,
+//             phoneNumber: reg.coach.phoneNumber,
+//             aadharId: reg.coach.aadharId
+//           });
+//         }
 
-        // Relay Teams
-        if (Array.isArray(reg.relayTeams)) {
-          reg.relayTeams.forEach(team => {
-            if (Array.isArray(team.members)) {
-              team.members.forEach(member => {
-                if (member.fullname || member.name) {
-                  eventData.players.push({
-                    name: member.fullname || member.name,
-                    email: member.email || null,
-                    phoneNumber: member.phoneNumber || member.contactNumber || null,
-                    aadharId: member.aadharId || null
-                  });
-                }
-              });
-            }
-          });
-        }
+//         // Relay Teams
+//         if (Array.isArray(reg.relayTeams)) {
+//           reg.relayTeams.forEach(team => {
+//             if (Array.isArray(team.members)) {
+//               team.members.forEach(member => {
+//                 if (member.fullname || member.name) {
+//                   eventData.players.push({
+//                     name: member.fullname || member.name,
+//                     email: member.email || null,
+//                     phoneNumber: member.phoneNumber || member.contactNumber || null,
+//                     aadharId: member.aadharId || null
+//                   });
+//                 }
+//               });
+//             }
+//           });
+//         }
 
-        // Individual Events (optional metadata)
-        if (Array.isArray(reg.individualEvents) && reg.individualEvents.length > 0) {
-          eventData.individualEvents = reg.individualEvents;
-        }
+//         // Individual Events (optional metadata)
+//         if (Array.isArray(reg.individualEvents) && reg.individualEvents.length > 0) {
+//           eventData.individualEvents = reg.individualEvents;
+//         }
 
-      } else {
+//       } else {
 
-        if (reg.leadName || (reg.captain && reg.captain.fullname)) {
-          const lead = reg.leadName ? reg : reg.captain;
-          eventData.players.push({
-            name: lead.fullname || lead.leadName || lead.name || null,
-            email: lead.email || null,
-            phoneNumber: lead.phoneNumber || lead.contactNumber || null,
-            aadharId: lead.aadharId || null
-          });
-        }
+//         if (reg.leadName || (reg.captain && reg.captain.fullname)) {
+//           const lead = reg.leadName ? reg : reg.captain;
+//           eventData.players.push({
+//             name: lead.fullname || lead.leadName || lead.name || null,
+//             email: lead.email || null,
+//             phoneNumber: lead.phoneNumber || lead.contactNumber || null,
+//             aadharId: lead.aadharId || null
+//           });
+//         }
 
-        if (reg.team && Array.isArray(reg.team.members)) {
-          reg.team.members.forEach(member => {
-            if (member.fullname || member.name) {
-              eventData.players.push({
-                name: member.fullname || member.name,
-                email: member.email || null,
-                phoneNumber: member.phoneNumber || member.contactNumber || null,
-                aadharId: member.aadharId || null
-              });
-            }
-          });
-        }
+//         if (reg.team && Array.isArray(reg.team.members)) {
+//           reg.team.members.forEach(member => {
+//             if (member.fullname || member.name) {
+//               eventData.players.push({
+//                 name: member.fullname || member.name,
+//                 email: member.email || null,
+//                 phoneNumber: member.phoneNumber || member.contactNumber || null,
+//                 aadharId: member.aadharId || null
+//               });
+//             }
+//           });
+//         }
 
-        if (reg.players) {
-          if (Array.isArray(reg.players)) {
-            reg.players.forEach(player => {
-              if (player.fullname || player.name) {
-                eventData.players.push({
-                  name: player.fullname || player.name,
-                  email: player.email || null,
-                  phoneNumber: player.phoneNumber || player.contactNumber || null,
-                  aadharId: player.aadharId || null
-                });
-              }
-            });
-          } else if (typeof reg.players === "object") {
-            if (reg.players.fullname || reg.players.name) {
-              eventData.players.push({
-                name: reg.players.fullname || reg.players.name,
-                email: reg.players.email || null,
-                phoneNumber: reg.players.phoneNumber || reg.players.contactNumber || null,
-                aadharId: reg.players.aadharId || null
-              });
-            }
-          }
-        }
+//         if (reg.players) {
+//           if (Array.isArray(reg.players)) {
+//             reg.players.forEach(player => {
+//               if (player.fullname || player.name) {
+//                 eventData.players.push({
+//                   name: player.fullname || player.name,
+//                   email: player.email || null,
+//                   phoneNumber: player.phoneNumber || player.contactNumber || null,
+//                   aadharId: player.aadharId || null
+//                 });
+//               }
+//             });
+//           } else if (typeof reg.players === "object") {
+//             if (reg.players.fullname || reg.players.name) {
+//               eventData.players.push({
+//                 name: reg.players.fullname || reg.players.name,
+//                 email: reg.players.email || null,
+//                 phoneNumber: reg.players.phoneNumber || reg.players.contactNumber || null,
+//                 aadharId: reg.players.aadharId || null
+//               });
+//             }
+//           }
+//         }
 
-        if (reg.partnerDetails && (reg.partnerDetails.name || reg.partnerDetails.fullname)) {
-          eventData.players.push({
-            name: reg.partnerDetails.fullname || reg.partnerDetails.name,
-            email: reg.partnerDetails.email || null,
-            phoneNumber: reg.partnerDetails.phoneNumber || null,
-            aadharId: reg.partnerDetails.aadharId || null
-          });
-        }
+//         if (reg.partnerDetails && (reg.partnerDetails.name || reg.partnerDetails.fullname)) {
+//           eventData.players.push({
+//             name: reg.partnerDetails.fullname || reg.partnerDetails.name,
+//             email: reg.partnerDetails.email || null,
+//             phoneNumber: reg.partnerDetails.phoneNumber || null,
+//             aadharId: reg.partnerDetails.aadharId || null
+//           });
+//         }
 
-        if (reg.coach && (reg.coach.name || reg.coach.fullname)) {
-          eventData.players.push({
-            name: reg.coach.fullname || reg.coach.name,
-            email: reg.coach.email || null,
-            phoneNumber: reg.coach.phoneNumber || null,
-            aadharId: reg.coach.aadharId || null
-          });
-        }
-      }
+//         if (reg.coach && (reg.coach.name || reg.coach.fullname)) {
+//           eventData.players.push({
+//             name: reg.coach.fullname || reg.coach.name,
+//             email: reg.coach.email || null,
+//             phoneNumber: reg.coach.phoneNumber || null,
+//             aadharId: reg.coach.aadharId || null
+//           });
+//         }
+//       }
 
-      eventResults.push(eventData);
-    }
+//       eventResults.push(eventData);
+//     }
 
-    return res.json({ success: true, data: eventResults });
-  } catch (err) {
-    console.error("Error fetching user event registrations:", err);
-    return res.status(500).json({ success: false, message: "Server error" });
-  }
-};
+//     console.log(eventResults, "user events")
+
+//     return res.json({ success: true, data: eventResults });
+//   } catch (err) {
+//     console.error("Error fetching user event registrations:", err);
+//     return res.status(500).json({ success: false, message: "Server error" });
+//   }
+// };
 
 
 

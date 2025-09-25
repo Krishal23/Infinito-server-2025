@@ -414,7 +414,7 @@ export const getAccommodation = async (req, res) => {
     if (eventId) filter.eventId = eventId;
     if (userId) filter.userId = userId;
 
-    const accommodations = await Accommodation.find(filter);
+    const accommodations = await Accommodation.find(filter)
 
     if (!accommodations || accommodations.length === 0) {
       return res.status(404).json({ message: "No accommodation found" });
