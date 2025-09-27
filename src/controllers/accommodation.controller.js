@@ -114,8 +114,9 @@ export const createAccommodationOrder = async (req, res) => {
 
     const userId = req?.user?._id;
     if (!userId) return res.status(401).json({ message: "User not logged in" });
+    console.log(req.body)
 
-    const { eventId, genderCategory, checkInDate, stayDays, players, couponCode } = req.body;
+    const { eventId, genderCategory, checkInDate, stayDays,meals, players, couponCode } = req.body;
     console.log(req.body)
 
     if (!eventId || !genderCategory || !checkInDate || !stayDays || !players || players.length === 0) {
@@ -137,6 +138,24 @@ export const createAccommodationOrder = async (req, res) => {
 
     // ---- Fee Calculation ----
     const accommodationFee = 250 * players.length * stayDays;
+    
+    const mealRates = {
+      breakfast: 80,
+      lunch: 80,
+      dinner: 80,
+    };
+
+    let messFee = 0;
+    if (meals && typeof meals === "object") {
+      Object.values(meals).forEach((dayMeals) => {
+        Object.entries(dayMeals).forEach(([mealType, selected]) => {
+          if (selected && mealRates[mealType]) {
+            messFee += mealRates[mealType] * players.length;
+          }
+        });
+      });
+    }
+
     let couponDiscount = 0;
     let isCouponApplied = false;
     let appliedCouponCode = null;
@@ -154,8 +173,8 @@ export const createAccommodationOrder = async (req, res) => {
     }
 
 
-    const totalAmount = accommodationFee - couponDiscount;
-    console.log(accommodationFee, " - ", couponDiscount, " ", couponCode)
+    const totalAmount = accommodationFee +messFee - couponDiscount;
+    console.log(accommodationFee, " + ",messFee, " - ", couponDiscount, " ", couponCode)
 
 
     // Shorten ObjectId + timestamp
@@ -187,6 +206,8 @@ export const createAccommodationOrder = async (req, res) => {
         couponCode,
         couponDiscount,
         isCouponApplied,
+        meals,
+        messFee,
         totalAmount,
       },
     });
@@ -242,6 +263,27 @@ export const verifyAccommodationPayment = async (req, res) => {
     const checkOut = new Date(checkIn);
     checkOut.setDate(checkOut.getDate() + (Number(accommodationData.stayDays) - 1));
 
+
+    
+const playersWithMeals = accommodationData.players.map((player) => {
+  const mealsTracking = [];
+
+  if (accommodationData.meals && typeof accommodationData.meals === "object") {
+    Object.entries(accommodationData.meals).forEach(([dateStr, dayMeals]) => {
+      const slots = ["breakfast", "lunch", "dinner"].map((mealType) => ({
+        type: mealType,
+        taken: !!dayMeals[mealType], // true if selected, false if not
+      }));
+      mealsTracking.push({ date: new Date(dateStr), slots });
+    });
+  }
+
+  return {
+    ...player,
+    mealsTracking,
+  };
+});
+
     // ---- Save Accommodation ----
     const newAccommodation = new Accommodation({
       userId,
@@ -249,7 +291,7 @@ export const verifyAccommodationPayment = async (req, res) => {
       genderCategory: accommodationData.genderCategory,
       checkInDate: checkIn,
       checkOutDate: checkOut,
-      players: accommodationData.players,
+      players: playersWithMeals,
       accommodationFee: accommodationData.accommodationFee,
       couponCode: accommodationData.couponCode || null,
       couponDiscount: accommodationData.couponDiscount || 0,

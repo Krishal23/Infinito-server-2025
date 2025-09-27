@@ -11,6 +11,7 @@ const mealSlotSchema = new mongoose.Schema(
   { _id: false }
 );
 
+
 const mealsTrackingSchema = new mongoose.Schema(
   {
     date: { type: Date, required: true },
@@ -18,6 +19,7 @@ const mealsTrackingSchema = new mongoose.Schema(
   },
   { _id: false }
 );
+
 
 // -------------------- Individual Player Schema --------------------
 const playerAccommodationSchema = new mongoose.Schema(
@@ -47,7 +49,7 @@ const accommodationSchema = new mongoose.Schema(
     // Fees & totals
     accommodationFee: { type: Number, default: 0 },
     mealsFee: { type: Number, default: 0 },
-    totalMealsEntitled: { type: Number, default: 0 },
+    // totalMealsEntitled: { type: Number, default: 0 },
     totalAmount: { type: Number, default: 0 },
 
     // Coupons
@@ -80,10 +82,16 @@ accommodationSchema.pre("save", function (next) {
     this.accommodationDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
   }
 
+  // Meal rates
+  const mealRates = { breakfast: 80, lunch: 80, dinner: 80 };
+
   // Generate meals tracking per player and total meals
   this.totalMealsEntitled = 0;
+  this.mealsFee = 0;
+
   if (this.players && this.players.length > 0) {
     this.players.forEach(player => {
+      // Generate default mealsTracking if not present
       if (!player.mealsTracking || player.mealsTracking.length === 0) {
         const tracking = [];
         let current = new Date(this.checkInDate);
@@ -100,6 +108,17 @@ accommodationSchema.pre("save", function (next) {
         }
         player.mealsTracking = tracking;
       }
+
+      // Count total meals and calculate fees
+      player.mealsTracking.forEach(day => {
+        day.slots.forEach(slot => {
+          if (slot.taken) { // only count meals that are selected/taken
+            this.mealsFee += mealRates[slot.type] || 0;
+          }
+        });
+      });
+
+      // Total meals
       this.totalMealsEntitled += player.mealsTracking.length * 3;
     });
   }
