@@ -474,3 +474,24 @@ export const getAccommodation = async (req, res) => {
 };
 
 
+export const getMyAccommodations = async (req, res) => {
+  try {
+    const userId = req?.user?._id;
+    if (!userId) return res.status(401).json({ message: "User not logged in" });
+
+    const accommodations = await Accommodation.find({ userId }).sort({ createdAt: -1 });
+
+    if (!accommodations.length) {
+      return res.status(404).json({ message: "No accommodations found for this user" });
+    }
+
+    res.status(200).json({
+      message: "Accommodations fetched successfully",
+      count: accommodations.length,
+      accommodations,
+    });
+  } catch (error) {
+    console.error("Error fetching accommodations:", error);
+    res.status(500).json({ message: "Internal server error", error: error.message });
+  }
+};
