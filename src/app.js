@@ -18,6 +18,7 @@ import accommodationRoutes from "./routes/accommodation.routes.js";
 import couponRoutes from "./routes/coupon.routes.js";
 import productRoutes from "./routes/product.routes.js";
 import merchOrderRoutes from "./routes/merchorder.routes.js";
+import path from "path";
 
 // import dashboardRouter from "./routes/dashboard.routes.js";
 
@@ -84,16 +85,16 @@ app.use(cors(corsOptions));
 // app.options("*", cors(corsOptions));
 
 
-app.use((req, res, next) => {
- res.header("Access-Control-Allow-Origin", req.headers.origin || "*");
- res.header("Access-Control-Allow-Credentials", "true");
- res.header("Access-Control-Allow-Methods", "GET,POST,PUT,DELETE,OPTIONS");
- res.header("Access-Control-Allow-Headers", "Content-Type,Authorization,X-Requested-With");
- if (req.method === "OPTIONS") {
-   return res.sendStatus(204);
- }
- next();
-});
+// app.use((req, res, next) => {
+//  res.header("Access-Control-Allow-Origin", req.headers.origin || "*");
+//  res.header("Access-Control-Allow-Credentials", "true");
+//  res.header("Access-Control-Allow-Methods", "GET,POST,PUT,DELETE,OPTIONS");
+//  res.header("Access-Control-Allow-Headers", "Content-Type,Authorization,X-Requested-With");
+//  if (req.method === "OPTIONS") {
+//    return res.sendStatus(204);
+//  }
+//  next();
+// });
 
 
 
@@ -147,6 +148,7 @@ app.use("/api/v1/accommodation", accommodationRoutes);
 app.use("/api/v1/coupons", couponRoutes);
 app.use("/api/v1/product", productRoutes);
 app.use("/api/v1/merch", merchOrderRoutes);
+app.use("/uploads", express.static(path.join(process.cwd(), "uploads")));
 
 
 //admin-routes

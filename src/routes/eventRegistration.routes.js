@@ -1,6 +1,6 @@
 import express from "express";
 import { authenticateUser } from "../middlewares/auth.js";
-import { EVENT_MODELS } from "../models/eventRegistration.model.js"; 
+import { EVENT_MODELS } from "../models/EventModelFinal.js";
 import { createEventOrder, getAllEventPlayers, getAllRegistrations, getMyRegistrations, getRegisteredEvents, getUserEventRegistrations, verifyAndRegister } from "../controllers/eventRegistration.controller.js";
 import { getEventRegistrations } from "../controllers/eventRegistration.controller.js";
 import { verifyToken } from "../middlewares/verifyToken.js";

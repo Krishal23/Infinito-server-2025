@@ -38,6 +38,7 @@ const accommodationSchema = new mongoose.Schema(
   {
     userId: { type: mongoose.Schema.Types.ObjectId, ref: "User", required: true },
     eventId: { type: mongoose.Schema.Types.ObjectId, ref: "Event", required: true },
+    eventName: { type: String},
     genderCategory: { type: String, enum: ["male", "female", "mixed"], required: true },
 
     checkInDate: { type: Date, required: true },
@@ -63,6 +64,10 @@ const accommodationSchema = new mongoose.Schema(
     paymentId: { type: String },
     paymentSignature: { type: String },
     paymentStatus: { type: String, enum: ["pending", "paid", "failed"], default: "pending" },
+    paymentProof: {
+    type: String, // store the file path or filename
+    required: false,
+  },
 
     // Booking status
     status: { type: String, enum: ["pending", "confirmed", "cancelled"], default: "pending" },

@@ -4,7 +4,7 @@ import { Transaction } from "../models/transaction.model.js";
 import { createOrder } from "./payment.controller.js";
 import crypto from "crypto";
 import ErrorHandler from "../utils/ErrorHandler.js";
-import { EVENT_MODELS } from "../models/eventRegistration.model.js";
+import { EVENT_MODELS } from "../models/EventModelFinal.js";
 import { sendEventRegistrationEmail } from "../utils/emails/templates/sendEventRegistrationEmail.js";
 import Razorpay from "razorpay";
 
