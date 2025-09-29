@@ -181,6 +181,7 @@ export const createAccommodationOrder = async (req, res) => {
     const shortUserId = userId.toString().slice(-10); // take last 10 chars
     const timestamp = Date.now().toString().slice(-10); // last 10 digits
     const receipt = `acc_${shortUserId}_${timestamp}`;
+    console.log(totalAmount, "total Amnt")
 
     // ---- Create Razorpay Order ----
     const order = await razorpay.orders.create({
