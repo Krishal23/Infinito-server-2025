@@ -25,8 +25,8 @@ import path from "path";
 
 // Static allowlist (base)
 const allowedOrigins = [
-//   "http://localhost:5173",
-//   "http://localhost:3000",
+  // "http://localhost:5173",
+  // "http://localhost:3000",
   "https://infinito.iitp.ac.in",
   "https://infinitotest.34.47.128.100.nip.io",
   "https://infinito-client-2025.vercel.app",
@@ -124,8 +124,8 @@ app.use = function (path, ...handlers) {
 
 
 // Common middlewares
-app.use(express.json({ limit: "16kb" }));
-app.use(express.urlencoded({ extended: true, limit: "16kb" }));
+app.use(express.json({ limit: "10mb" }));
+app.use(express.urlencoded({ limit: "10mb", extended: true }));
 app.use(express.static("public"));
 app.use(cookieParser());
 
