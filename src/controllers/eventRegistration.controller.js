@@ -562,11 +562,23 @@ export const getUserEventRegistrations = async (req, res) => {
       addPlayer(reg.viceCaptain, "viceCaptain");
       addPlayer(reg.coach, "coach");
 
+      // Add substitutes
+      if (Array.isArray(reg.substitutes)) {
+        reg.substitutes.forEach((sub) => addPlayer(sub, "substitute"));
+      }
+
+      // Add general players (if schema has them)
+      if (Array.isArray(reg.players)) {
+        reg.players.forEach((p, idx) => addPlayer(p, `player_${idx + 1}`));
+      }
+
       // Add relay team members
       if (Array.isArray(reg.relayTeams)) {
         reg.relayTeams.forEach((team, idx) => {
           if (Array.isArray(team.members)) {
-            team.members.forEach((m) => addPlayer(m, `relayTeam_${team.teamName || idx + 1}`));
+            team.members.forEach((m) =>
+              addPlayer(m, `relayTeam_${team.teamName || idx + 1}`)
+            );
           }
         });
       }
@@ -844,13 +856,89 @@ export const getMyRegistrations = CatchAsyncErrror(async (req, res, next) => {
     registrations: results,
   });
 });
-
 export const getAllRegistrations = CatchAsyncErrror(async (req, res, next) => {
   const results = {};
 
-  for (const [key, Model] of Object.entries(EVENT_MODELS)) {
-    const registrations = await Model.find().populate("userId", "username email fullname").sort({ createdAt: -1 });
-    if (registrations.length) results[key] = registrations;
+  for (const [eventName, Model] of Object.entries(EVENT_MODELS)) {
+    const registrations = await Model.find()
+      .populate("userId", "username email fullname")
+      .sort({ createdAt: -1 });
+
+    if (!registrations.length) continue;
+
+    results[eventName] = registrations.map((reg) => {
+      const regData = {
+        eventName,
+        eventId: reg._id,
+        user: reg.userId || null,
+        category: reg.category || null,
+        collegeName: reg.collegeName || null,
+        collegeAddress: reg.collegeAddress || null,
+        registrationDate: reg.registrationDate || reg.createdAt,
+        players: [],
+        coach:reg?.coach,
+        raw: reg, // keep full object if you still want backend refs
+      };
+
+      // helper
+      const addPlayer = (person, role = "player") => {
+        if (!person) return;
+        const name = person.fullname || person.leadName || person.name;
+        if (!name) return;
+        regData.players.push({
+          role,
+          name,
+          email: person.email || null,
+          phoneNumber: person.phoneNumber || person.contactNumber || null,
+          aadharId: person.aadharId || null,
+        });
+      };
+
+      // Add all roles
+      addPlayer(reg.lead || { leadName: reg.leadName }, "lead");
+      addPlayer(reg.captain, "captain");
+      addPlayer(reg.viceCaptain, "viceCaptain");
+      addPlayer(reg.coach, "coach");
+
+      // Players array
+      if (reg.players) {
+        if (Array.isArray(reg.players)) {
+          reg.players.forEach((p, idx) => addPlayer(p, `player_${idx + 1}`));
+        } else if (typeof reg.players === "object") {
+          addPlayer(reg.players, "player");
+        }
+      }
+
+      // Substitutes
+      if (Array.isArray(reg.substitutes)) {
+        reg.substitutes.forEach((sub, idx) =>
+          addPlayer(sub, `substitute_${idx + 1}`)
+        );
+      }
+
+      // Team members
+      if (reg.team && Array.isArray(reg.team.members)) {
+        reg.team.members.forEach((m, idx) =>
+          addPlayer(m, `teamMember_${idx + 1}`)
+        );
+      }
+
+      // Partner
+      addPlayer(reg.partnerDetails, "partner");
+
+      // Relay teams
+      if (Array.isArray(reg.relayTeams)) {
+        reg.relayTeams.forEach((team, idx) => {
+          if (Array.isArray(team.members)) {
+            team.members.forEach((m) =>
+              addPlayer(m, `relayTeam_${team.teamName || idx + 1}`)
+            );
+          }
+        });
+      }
+
+      return regData;
+    });
   }
 
   res.status(200).json({
@@ -888,93 +976,84 @@ export const getRegisteredEvents = CatchAsyncErrror(async (req, res, next) => {
 export const getAllEventPlayers = async (req, res) => {
   try {
     const results = [];
-    console.log("Hello")
+    console.log("Hello");
 
     for (const [eventName, Model] of Object.entries(EVENT_MODELS)) {
       const registrations = await Model.find();
 
-      registrations.forEach(reg => {
+      registrations.forEach((reg) => {
         const eventData = {
           eventName,
           eventId: reg._id,
-          players: []
+          players: [],
         };
 
-        // 1️⃣ Add main lead / captain
-        if (reg.leadName || (reg.captain && reg.captain.fullname)) {
-          const lead = reg.leadName ? reg : reg.captain;
+        // helper fn
+        const addPlayer = (person, role = "player") => {
+          if (!person) return;
+          const name = person.fullname || person.leadName || person.name;
+          if (!name) return;
           eventData.players.push({
-            name: lead.fullname || lead.leadName || lead.name || null,
-            email: lead.email || null,
-            phoneNumber: lead.phoneNumber || lead.contactNumber || null,
-            aadharId: lead.aadharId || null
+            role,
+            name,
+            email: person.email || null,
+            phoneNumber: person.phoneNumber || person.contactNumber || null,
+            aadharId: person.aadharId || null,
           });
-        }
+        };
+
+        // 1️⃣ Add lead / captain / viceCaptain
+        addPlayer(reg.lead || { leadName: reg.leadName }, "lead");
+        addPlayer(reg.captain, "captain");
+        addPlayer(reg.viceCaptain, "viceCaptain");
 
         // 2️⃣ Add team members if present
         if (reg.team && Array.isArray(reg.team.members)) {
-          reg.team.members.forEach(member => {
-            if (member.fullname || member.name) {
-              eventData.players.push({
-                name: member.fullname || member.name,
-                email: member.email || null,
-                phoneNumber: member.phoneNumber || member.contactNumber || null,
-                aadharId: member.aadharId || null
-              });
-            }
-          });
+          reg.team.members.forEach((m, idx) =>
+            addPlayer(m, `teamMember_${idx + 1}`)
+          );
         }
 
-        // 3️⃣ Add players array (array or single object)
+        // 3️⃣ Add players (array or single)
         if (reg.players) {
           if (Array.isArray(reg.players)) {
-            reg.players.forEach(player => {
-              if (player.fullname || player.name) {
-                eventData.players.push({
-                  name: player.fullname || player.name,
-                  email: player.email || null,
-                  phoneNumber: player.phoneNumber || player.contactNumber || null,
-                  aadharId: player.aadharId || null
-                });
-              }
-            });
-          } else if (typeof reg.players === 'object') {
-            if (reg.players.fullname || reg.players.name) {
-              eventData.players.push({
-                name: reg.players.fullname || reg.players.name,
-                email: reg.players.email || null,
-                phoneNumber: reg.players.phoneNumber || reg.players.contactNumber || null,
-                aadharId: reg.players.aadharId || null
-              });
-            }
+            reg.players.forEach((p, idx) =>
+              addPlayer(p, `player_${idx + 1}`)
+            );
+          } else if (typeof reg.players === "object") {
+            addPlayer(reg.players, "player");
           }
         }
 
-        // 4️⃣ Add partnerDetails if present
-        if (reg.partnerDetails && (reg.partnerDetails.name || reg.partnerDetails.fullname)) {
-          eventData.players.push({
-            name: reg.partnerDetails.fullname || reg.partnerDetails.name,
-            email: reg.partnerDetails.email || null,
-            phoneNumber: reg.partnerDetails.phoneNumber || null,
-            aadharId: reg.partnerDetails.aadharId || null
-          });
+        // 4️⃣ Add substitutes if present
+        if (Array.isArray(reg.substitutes)) {
+          reg.substitutes.forEach((sub, idx) =>
+            addPlayer(sub, `substitute_${idx + 1}`)
+          );
         }
 
-        // 5️⃣ Add coach if present
-        if (reg.coach && (reg.coach.name || reg.coach.fullname)) {
-          eventData.players.push({
-            name: reg.coach.fullname || reg.coach.name,
-            email: reg.coach.email || null,
-            phoneNumber: reg.coach.phoneNumber || null,
-            aadharId: reg.coach.aadharId || null
+        // 5️⃣ Add partnerDetails
+        addPlayer(reg.partnerDetails, "partner");
+
+        // 6️⃣ Add coach
+        addPlayer(reg.coach, "coach");
+
+        // 7️⃣ Add relay teams if present
+        if (Array.isArray(reg.relayTeams)) {
+          reg.relayTeams.forEach((team, idx) => {
+            if (Array.isArray(team.members)) {
+              team.members.forEach((m) =>
+                addPlayer(m, `relayTeam_${team.teamName || idx + 1}`)
+              );
+            }
           });
         }
 
         results.push(eventData);
       });
     }
-    console.log(results, "all players")
 
+    console.log(results, "all players");
     return res.json({ success: true, data: results });
   } catch (err) {
     console.error("Error fetching event players:", err);
