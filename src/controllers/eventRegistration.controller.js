@@ -877,6 +877,7 @@ export const getAllRegistrations = CatchAsyncErrror(async (req, res, next) => {
         registrationDate: reg.registrationDate || reg.createdAt,
         players: [],
         coach:reg?.coach,
+        proofString:reg?.proofString,
         raw: reg, // keep full object if you still want backend refs
       };
 
