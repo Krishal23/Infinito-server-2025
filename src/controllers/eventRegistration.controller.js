@@ -60,12 +60,14 @@ export const registerWithProof = (EventModel, eventKey) => {
       ? JSON.parse(req.body.registrationData)
       : req.body.registrationData;
 
+    console.log(parsedData)
+
     // ---------------- Map registration data ----------------
     let mappedData = { userId };
 
-    if (["badminton","basketball","chess","cricket","football","kabaddi",
-         "lawn_tennis","squash","table_tennis","volleyball",
-         "weight_lifting","power_lifting"].includes(eventKey)) {
+    if (["badminton", "basketball", "chess", "cricket", "football", "kabaddi",
+      "lawn_tennis", "squash", "table_tennis", "volleyball",
+      "weight_lifting", "power_lifting"].includes(eventKey)) {
 
       mappedData = {
         userId,
@@ -92,15 +94,19 @@ export const registerWithProof = (EventModel, eventKey) => {
         coach: parsedData?.coachDetails,
         individualEvents: parsedData?.individualEvents || [],
         relayTeams: parsedData?.relayTeams || [],
+        collegeName: parsedData?.collegeName,
+        collegeAddress: parsedData?.collegeAddress,
       };
 
-    } else if (["bgmi","freefire","codm","valorant","clash_royale"].includes(eventKey)) {
+    } else if (["bgmi", "freefire", "codm", "valorant", "clash_royale"].includes(eventKey)) {
       mappedData = {
         userId,
         teamName: parsedData?.teamName,
         teamLeader: parsedData?.teamLeader,
         players: parsedData?.players || [],
         queries: parsedData?.queries || "",
+        collegeName: parsedData?.collegeName,
+        collegeAddress: parsedData?.collegeAddress,
       };
     }
 
@@ -111,6 +117,8 @@ export const registerWithProof = (EventModel, eventKey) => {
       paymentStatus: "paid",
       status: "confirmed",
     });
+
+    console.log(mappedData)
 
     const registration = await EventModel.create(mappedData);
 
@@ -476,12 +484,12 @@ export const fetchEventRegistrations = async (req, res, next) => {
       registrations: formattedData,
       pagination: isAdmin
         ? {
-            currentPage: parseInt(page),
-            totalPages: Math.ceil(totalRegistrations / limit),
-            totalRegistrations,
-            hasNext: page < Math.ceil(totalRegistrations / limit),
-            hasPrev: page > 1,
-          }
+          currentPage: parseInt(page),
+          totalPages: Math.ceil(totalRegistrations / limit),
+          totalRegistrations,
+          hasNext: page < Math.ceil(totalRegistrations / limit),
+          hasPrev: page > 1,
+        }
         : undefined,
     });
   } catch (err) {
@@ -489,7 +497,6 @@ export const fetchEventRegistrations = async (req, res, next) => {
     return res.status(500).json({ success: false, message: "Server error" });
   }
 };
-
 
 
 
@@ -513,12 +520,10 @@ export const getUserEventRegistrations = async (req, res) => {
       if (!Model) continue;
 
       const reg = await Model.findById(registrationId)
-        .populate("transaction") 
+        .populate("transaction")
         .lean();
       if (!reg) continue;
-      console.log(reg)
 
-      // Base event receipt
       const eventData = {
         eventName,
         eventId: reg._id,
@@ -528,59 +533,42 @@ export const getUserEventRegistrations = async (req, res) => {
         registrationDate: reg.registrationDate || reg.createdAt,
         payment: {
           status: reg.paymentStatus || "pending",
-          orderId: reg.paymentOrderId || null,
-          paymentId: reg.paymentId || null,
-          signature: reg.paymentSignature || null,
+          proof: reg.proofString || null,
           transaction: reg.transaction || null,
         },
+        individualEvents: reg.individualEvents || [],
+        relayTeams: reg.relayTeams || [],
         players: [],
-        fullReceipt: reg, // 👈 keep full doc for receipt
+        fullReceipt: reg,
       };
 
-      // --- Helper function to add a member to players array ---
-      const addMember = (member, role = "player") => {
-        if (!member) return;
-        const name = member.fullname || member.leadName || member.name;
+      // Helper to add person to players array
+      const addPlayer = (person, role = "player") => {
+        if (!person) return;
+        const name = person.fullname || person.leadName || person.name;
         if (!name) return;
         eventData.players.push({
           role,
           name,
-          email: member.email || null,
-          phoneNumber: member.phoneNumber || member.contactNumber || null,
-          aadharId: member.aadharId || null,
+          email: person.email || null,
+          phoneNumber: person.phoneNumber || person.contactNumber || null,
+          aadharId: person.aadharId || null,
         });
       };
 
-      // Add structured team members
-      if (reg.captain) addMember(reg.captain, "captain");
-      if (reg.viceCaptain) addMember(reg.viceCaptain, "viceCaptain");
-      if (reg.lead) addMember(reg.lead, "lead");
-      if (reg.teamLeader) addMember(reg.teamLeader, "teamLeader");
-      if (reg.partnerDetails) addMember(reg.partnerDetails, "partner");
+      // Add lead / captain / coach
+      addPlayer(reg.lead, "lead");
+      addPlayer(reg.captain, "captain");
+      addPlayer(reg.viceCaptain, "viceCaptain");
+      addPlayer(reg.coach, "coach");
 
-      if (Array.isArray(reg.players)) {
-        reg.players.forEach((p) => addMember(p, "player"));
-      } else if (typeof reg.players === "object") {
-        addMember(reg.players, "player");
-      }
-
-      if (Array.isArray(reg.substitutes)) {
-        reg.substitutes.forEach((s) => addMember(s, "substitute"));
-      }
-
-      if (reg.coach) addMember(reg.coach, "coach");
-
+      // Add relay team members
       if (Array.isArray(reg.relayTeams)) {
         reg.relayTeams.forEach((team, idx) => {
           if (Array.isArray(team.members)) {
-            team.members.forEach((m) => addMember(m, `relayTeam_${idx + 1}`));
+            team.members.forEach((m) => addPlayer(m, `relayTeam_${team.teamName || idx + 1}`));
           }
         });
-      }
-
-      // Add extra info if exists
-      if (Array.isArray(reg.individualEvents) && reg.individualEvents.length > 0) {
-        eventData.individualEvents = reg.individualEvents;
       }
 
       eventResults.push(eventData);
@@ -592,7 +580,6 @@ export const getUserEventRegistrations = async (req, res) => {
     return res.status(500).json({ success: false, message: "Server error" });
   }
 };
-
 
 
 export const getEventRegistrations = (eventKey) => {
@@ -611,7 +598,7 @@ export const getEventRegistrations = (eventKey) => {
     if (college) filter.collegeName = { $regex: college, $options: "i" };
 
     // Fetch registrations with pagination
-   const registrations = await EventModel.find(filter)
+    const registrations = await EventModel.find(filter)
       .populate("userId", "username email fullname")
       .populate("transaction") // populate transaction details
       .sort({ createdAt: -1 })
