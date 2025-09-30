@@ -38,6 +38,104 @@ function getEventFee(eventKey, category) {
 function toEventKey(k) {
   return String(k).toLowerCase().replace(/\s+/g, "_");
 }
+
+
+
+
+export const registerWithProof = (EventModel, eventKey) => {
+  return CatchAsyncErrror(async (req, res, next) => {
+    const userId = req.user._id;
+
+    // proofString can come from uploaded file or request body
+    const proofString = req.file?.path || req.body.proofString;
+    if (!proofString) {
+      return next(new ErrorHandler("Proof is required for registration", 400));
+    }
+
+    if (!req.body.registrationData) {
+      return next(new ErrorHandler("Registration data is required", 400));
+    }
+
+    const parsedData = typeof req.body.registrationData === "string"
+      ? JSON.parse(req.body.registrationData)
+      : req.body.registrationData;
+
+    // ---------------- Map registration data ----------------
+    let mappedData = { userId };
+
+    if (["badminton","basketball","chess","cricket","football","kabaddi",
+         "lawn_tennis","squash","table_tennis","volleyball",
+         "weight_lifting","power_lifting"].includes(eventKey)) {
+
+      mappedData = {
+        userId,
+        category: parsedData?.category || "open",
+        collegeName: parsedData?.collegeName,
+        collegeAddress: parsedData?.collegeAddress,
+        captain: parsedData?.captain || undefined,
+        viceCaptain: parsedData?.viceCaptain || undefined,
+        players: parsedData?.players || [],
+        substitutes: parsedData?.substitutes || [],
+        coach: parsedData?.coachDetails || parsedData?.coach,
+      };
+
+    } else if (eventKey === "athletics") {
+      mappedData = {
+        userId,
+        lead: {
+          fullname: parsedData?.leadName,
+          email: parsedData?.email,
+          phoneNumber: parsedData?.phoneNumber,
+          aadharId: parsedData?.aadharId
+        },
+        category: parsedData?.category || "men",
+        coach: parsedData?.coachDetails,
+        individualEvents: parsedData?.individualEvents || [],
+        relayTeams: parsedData?.relayTeams || [],
+      };
+
+    } else if (["bgmi","freefire","codm","valorant","clash_royale"].includes(eventKey)) {
+      mappedData = {
+        userId,
+        teamName: parsedData?.teamName,
+        teamLeader: parsedData?.teamLeader,
+        players: parsedData?.players || [],
+        queries: parsedData?.queries || "",
+      };
+    }
+
+    // ---------------- Add payment/proof info ----------------
+    Object.assign(mappedData, {
+      registrationFee: 0,
+      proofString,
+      paymentStatus: "paid",
+      status: "confirmed",
+    });
+
+    const registration = await EventModel.create(mappedData);
+
+    // ---------------- Update User ----------------
+    await User.findByIdAndUpdate(userId, {
+      $push: {
+        eventRegistrations: {
+          event: eventKey,
+          registrationId: registration._id,
+          status: "success",
+        },
+      },
+      $inc: { totalEventRegistrations: 1 },
+    });
+
+    return res.status(200).json({
+      success: true,
+      message: `Registration completed for ${eventKey}`,
+      registration,
+    });
+  });
+};
+
+
+
 export const createEventOrder = (eventKey) => {
   return CatchAsyncErrror(async (req, res, next) => {
     try {
@@ -418,6 +516,7 @@ export const getUserEventRegistrations = async (req, res) => {
         .populate("transaction") 
         .lean();
       if (!reg) continue;
+      console.log(reg)
 
       // Base event receipt
       const eventData = {

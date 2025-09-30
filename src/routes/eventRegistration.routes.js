@@ -1,10 +1,11 @@
 import express from "express";
 import { authenticateUser } from "../middlewares/auth.js";
 import { EVENT_MODELS } from "../models/EventModelFinal.js";
-import { createEventOrder, getAllEventPlayers, getAllRegistrations, getMyRegistrations, getRegisteredEvents, getUserEventRegistrations, verifyAndRegister } from "../controllers/eventRegistration.controller.js";
+import { createEventOrder, getAllEventPlayers, getAllRegistrations, getMyRegistrations, getRegisteredEvents, getUserEventRegistrations, registerWithProof, verifyAndRegister } from "../controllers/eventRegistration.controller.js";
 import { getEventRegistrations } from "../controllers/eventRegistration.controller.js";
 import { verifyToken } from "../middlewares/verifyToken.js";
 import { authorizeRole } from "../middlewares/authorizeRole.js";
+import { upload } from "../config/multer.js";
 
 const router = express.Router();
 
@@ -18,6 +19,12 @@ const EVENTS = [
 EVENTS.forEach((event) => {
   const EventModel = EVENT_MODELS[event];
 
+    router.post(
+    `/${event}`,
+    verifyToken,
+    upload.single("paymentProof"),
+    registerWithProof(EventModel, event)
+  );
 
   router.post(
       `/${event}/create-order`,
