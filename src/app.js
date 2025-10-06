@@ -18,6 +18,7 @@ import accommodationRoutes from "./routes/accommodation.routes.js";
 import couponRoutes from "./routes/coupon.routes.js";
 import productRoutes from "./routes/product.routes.js";
 import merchOrderRoutes from "./routes/merchorder.routes.js";
+import proniteRouter from "./routes/pronite.routes.js";
 
 // import dashboardRouter from "./routes/dashboard.routes.js";
 
@@ -147,6 +148,7 @@ app.use("/api/v1/accommodation", accommodationRoutes);
 app.use("/api/v1/coupons", couponRoutes);
 app.use("/api/v1/product", productRoutes);
 app.use("/api/v1/merch", merchOrderRoutes);
+app.use("/api/v1/pronite", proniteRouter);
 
 
 //admin-routes

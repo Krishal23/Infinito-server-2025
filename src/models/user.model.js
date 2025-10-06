@@ -83,6 +83,12 @@ const userSchema = new mongoose.Schema({
     type: mongoose.Schema.Types.ObjectId,
     ref: "MerchOrder"
   }],
+  proniteRegistrations: [
+    {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Pronite",
+    },
+  ],
 
 
   totalEventRegistrations: {
