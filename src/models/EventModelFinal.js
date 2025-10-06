@@ -26,7 +26,9 @@ const paymentSchema = {
   paymentId: String,
   paymentSignature: String,
   transaction: { type: mongoose.Schema.Types.ObjectId, ref: "Transaction" },
-  registrationDate: { type: Date, default: Date.now }
+  registrationDate: { type: Date, default: Date.now },
+  proofString: { type: String, default: "" },
+
 };
 
 const collegeSchema = {
@@ -42,7 +44,7 @@ function createTeamSportSchema({ withViceCaptain = true, withSubstitutes = false
     userId: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
     ...(categoryRequired ? { category: { type: String, enum: ["Men", "Women"], required: true } } : {}),
     ...collegeSchema,
-    captain: { type: teamMemberSchema, required: true },
+    captain: { type: teamMemberSchema},
     ...(withViceCaptain ? { viceCaptain: { type: teamMemberSchema, required: true } } : {}),
     players: [teamMemberSchema],
     ...(withSubstitutes ? { substitutes: [teamMemberSchema] } : {}),
@@ -59,6 +61,7 @@ function createTeamSportSchema({ withViceCaptain = true, withSubstitutes = false
 // -------------------- Athletics (special case) --------------------
 const athleticsSchema = new mongoose.Schema({
   userId: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
+  ...collegeSchema,
   lead: { type: teamMemberSchema, required: true },
   category: { type: String, enum: ["men", "women"], required: true },
   coach: coachSchema,
@@ -71,6 +74,7 @@ const athleticsSchema = new mongoose.Schema({
 const esportsPlayerSchema = new mongoose.Schema({
   name: { type: String, required: true },
   email: { type: String, required: true, lowercase: true },
+  ...collegeSchema,
   contactNumber: String,
   aadharId: { type: String, required: true },
   ign: { type: String }

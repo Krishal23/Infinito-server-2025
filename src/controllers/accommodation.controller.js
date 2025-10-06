@@ -1,5 +1,5 @@
 import { Accommodation } from "../models/accommodation.model.js";
-import { EVENT_MODELS } from "../models/eventRegistration.model.js";
+import { EVENT_MODELS } from "../models/EventModelFinal.js";
 import { User } from "../models/user.model.js";
 import Coupon from "../models/coupon.model.js";
 import Razorpay from "razorpay";
@@ -7,7 +7,7 @@ import crypto from "crypto";
 import { validateAndApplyCoupon } from "../utils/couponHelper.js";
 import { Transaction } from "../models/transaction.model.js";
 import { sendAccommodationBookingEmail } from "../utils/emails/templates/accommodationMail.js";
-
+import cloudinary from "../config/cloudinary.js"; // Cloudinary config
 
 
 const razorpay = new Razorpay({
@@ -26,87 +26,148 @@ const isValidEventId = async (eventId) => {
 };
 
 
-// export const createAccommodation = async (req, res) => {
-//   try {
-//     const userId = req?.user?._id;
-//     if (!userId) return res.status(401).json({ message: "User not logged in" });
 
-//     const { eventId, genderCategory, checkInDate, stayDays, players, couponCode } = req.body;
+// Save accommodation without payment
+export const createAccommodationWithoutPayment = async (req, res) => {
+  try {
+    const userId = req?.user?._id;
+    if (!userId) return res.status(401).json({ message: "User not logged in" });
 
-//     if (!eventId || !genderCategory || !checkInDate || !stayDays || !players || players.length === 0) {
-//       return res.status(400).json({ message: "Missing required fields" });
-//     }
+    let { eventId, genderCategory, eventName, checkInDate, stayDays, meals, players, couponCode } = req.body;
+    console.log(req.body);
 
-//     // Check event existence
-//     const eventExists = await isValidEventId(eventId);
-//     if (!eventExists) return res.status(404).json({ message: "Event not found" });
+    if (!eventId || !genderCategory || !checkInDate || !stayDays || !players) {
+      return res.status(400).json({ message: "Missing required fields" });
+    }
 
-//     // Compute checkout date
-//     const checkIn = new Date(checkInDate);
-//     const checkOut = new Date(checkIn);
-//     checkOut.setDate(checkOut.getDate() + (Number(stayDays) - 1));
+    // Check if event exists
+    const eventExists = await isValidEventId(eventId);
+    if (!eventExists) return res.status(404).json({ message: "Event not found" });
 
-//     // Fees
-//     const accommodationFee = 500 * players.length * stayDays;
+    // Parse players
+    let playersData = players;
+    if (typeof players === "string") {
+      try {
+        playersData = JSON.parse(players);
+        if (!Array.isArray(playersData)) throw new Error();
+      } catch {
+        return res.status(400).json({ message: "Invalid players format" });
+      }
+    }
 
-//     // Coupon logic using DB
-//     let couponDiscount = 0;
-//     let isCouponApplied = false;
+    // Parse meals
+    let mealsData = meals;
+    if (typeof meals === "string") {
+      try {
+        mealsData = JSON.parse(meals);
+      } catch {
+        return res.status(400).json({ message: "Invalid meals format" });
+      }
+    }
 
-//     if (couponCode) {
-//       const coupon = await Coupon.findOne({ couponTag: couponCode, isLive: true });
-//       if (!coupon) {
-//         return res.status(400).json({ message: "Invalid or inactive coupon" });
-//       }
+    // Compute check-out date
+    const checkIn = new Date(checkInDate);
+    const checkOut = new Date(checkIn);
+    checkOut.setDate(checkOut.getDate() + (Number(stayDays) - 1));
 
-//       if (new Date() > coupon.validUpto) {
-//         return res.status(400).json({ message: "Coupon expired" });
-//       }
+    // Accommodation fee
+    const accommodationFee = 250 * playersData.length * stayDays;
 
-//       if (coupon.couponType === "flat") {
-//         couponDiscount = coupon.discount;
-//       } else if (coupon.couponType === "percentage") {
-//         couponDiscount = Math.floor((coupon.discount / 100) * (accommodationFee));
-//       }
+    // Create mealsTracking per player
+    const playersWithMeals = playersData.map(player => {
+      const mealsTracking = [];
+      if (mealsData && typeof mealsData === "object") {
+        Object.entries(mealsData).forEach(([dateStr, dayMeals]) => {
+          const slots = ["breakfast", "lunch", "dinner"].map(mealType => ({
+            type: mealType,
+            taken: !!dayMeals[mealType],
+          }));
+          mealsTracking.push({ date: new Date(dateStr), slots });
+        });
+      }
+      return { ...player, mealsTracking };
+    });
 
-//       isCouponApplied = true;
+    // Upload payment proof if provided
+    let paymentProofUrl = null;
+    if (req.file) {
+      const result = await cloudinary.uploader.upload(req.file.path, {
+        folder: "paymentProofs",
+      });
+      paymentProofUrl = result.secure_url;
+    }
 
-//       // Add user to coupon's usedBy
-//       coupon.usedBy.push(userId);
-//       await coupon.save();
-//     }
+    // Coupon
+    let couponDiscount = 0;
+    let isCouponApplied = false;
+    if (couponCode) {
+      try {
+        const result = await validateAndApplyCoupon(couponCode, userId, accommodationFee, "ACCOM");
+        couponDiscount = result.couponDiscount;
+        isCouponApplied = result.isCouponApplied;
+      } catch (err) {
+        return res.status(400).json({ message: err.message });
+      }
+    }
 
-//     // Prepare accommodation object
-//     const newAccommodation = new Accommodation({
-//       userId,
-//       eventId,
-//       genderCategory,
-//       checkInDate: checkIn,
-//       checkOutDate: checkOut,
-//       players,
-//       accommodationFee,
-//       couponCode: couponCode || null,
-//       couponDiscount,
-//       isCouponApplied,
-//       totalAmount: accommodationFee - couponDiscount,
-//       createdBy: userId.toString(),
-//     });
+    // Create accommodation record
+    const newAccommodation = new Accommodation({
+      userId,
+      eventId,
+      genderCategory,
+      checkInDate: checkIn,
+      checkOutDate: checkOut,
+      players: playersWithMeals,
+      accommodationFee,
+      couponCode: couponCode || null,
+      couponDiscount,
+      isCouponApplied,
+      paymentStatus: "pending",
+      status: "pending",
+      createdBy: userId.toString(),
+      paymentProof: paymentProofUrl,
+      eventName,
+    });
 
-//     await newAccommodation.save();
+    console.log(newAccommodation)
 
-//     await User.findByIdAndUpdate(userId, { $push: { accommodations: newAccommodation._id } });
-
-//     res.status(201).json({
-//       message: "Accommodation booked successfully",
-//       accommodation: newAccommodation,
-//     });
-//   } catch (error) {
-//     console.error("Error creating accommodation:", error);
-//     res.status(500).json({ message: "Internal server error", error });
-//   }
-// };
+    // Mark coupon as used
+    if (couponCode) {
+      const appliedCoupon = await Coupon.findOne({ couponTag: couponCode });
+      if (appliedCoupon) {
+        appliedCoupon.usedBy.push({ userId, usedAt: new Date() });
+        await appliedCoupon.save();
+      }
+    }
 
 
+
+    await newAccommodation.save();
+
+    // Link to user
+    await User.findByIdAndUpdate(userId, {
+      $push: { accommodations: newAccommodation._id },
+    });
+
+    // Send confirmation email safely (txn/payment may be null)
+    const user = await User.findById(userId).select("email fullname");
+    await sendAccommodationBookingEmail(
+      newAccommodation,
+      user,
+      { id: "N/A", order_id: "N/A", registrationFee: newAccommodation.totalAmount },
+      { method: "N/A", _id: newAccommodation._id }
+    );
+
+    res.status(201).json({
+      message: "Accommodation saved successfully (without payment)",
+      accommodation: newAccommodation,
+      totalAmount: newAccommodation.totalAmount,
+    });
+  } catch (error) {
+    console.error("Error saving accommodation without payment:", error);
+    res.status(500).json({ message: "Internal server error" });
+  }
+};
 
 
 export const createAccommodationOrder = async (req, res) => {
@@ -114,8 +175,9 @@ export const createAccommodationOrder = async (req, res) => {
 
     const userId = req?.user?._id;
     if (!userId) return res.status(401).json({ message: "User not logged in" });
+    console.log(req.body)
 
-    const { eventId, genderCategory, checkInDate, stayDays, players, couponCode } = req.body;
+    const { eventId, genderCategory, checkInDate, stayDays, meals, players, couponCode } = req.body;
     console.log(req.body)
 
     if (!eventId || !genderCategory || !checkInDate || !stayDays || !players || players.length === 0) {
@@ -137,6 +199,24 @@ export const createAccommodationOrder = async (req, res) => {
 
     // ---- Fee Calculation ----
     const accommodationFee = 250 * players.length * stayDays;
+
+    const mealRates = {
+      breakfast: 80,
+      lunch: 80,
+      dinner: 80,
+    };
+
+    let messFee = 0;
+    if (meals && typeof meals === "object") {
+      Object.values(meals).forEach((dayMeals) => {
+        Object.entries(dayMeals).forEach(([mealType, selected]) => {
+          if (selected && mealRates[mealType]) {
+            messFee += mealRates[mealType] * players.length;
+          }
+        });
+      });
+    }
+
     let couponDiscount = 0;
     let isCouponApplied = false;
     let appliedCouponCode = null;
@@ -154,14 +234,15 @@ export const createAccommodationOrder = async (req, res) => {
     }
 
 
-    const totalAmount = accommodationFee - couponDiscount;
-    console.log(accommodationFee, " - ", couponDiscount, " ", couponCode)
+    const totalAmount = accommodationFee + messFee - couponDiscount;
+    console.log(accommodationFee, " + ", messFee, " - ", couponDiscount, " ", couponCode)
 
 
     // Shorten ObjectId + timestamp
     const shortUserId = userId.toString().slice(-10); // take last 10 chars
     const timestamp = Date.now().toString().slice(-10); // last 10 digits
     const receipt = `acc_${shortUserId}_${timestamp}`;
+    console.log(totalAmount, "total Amnt")
 
     // ---- Create Razorpay Order ----
     const order = await razorpay.orders.create({
@@ -187,6 +268,8 @@ export const createAccommodationOrder = async (req, res) => {
         couponCode,
         couponDiscount,
         isCouponApplied,
+        meals,
+        messFee,
         totalAmount,
       },
     });
@@ -242,6 +325,27 @@ export const verifyAccommodationPayment = async (req, res) => {
     const checkOut = new Date(checkIn);
     checkOut.setDate(checkOut.getDate() + (Number(accommodationData.stayDays) - 1));
 
+
+
+    const playersWithMeals = accommodationData.players.map((player) => {
+      const mealsTracking = [];
+
+      if (accommodationData.meals && typeof accommodationData.meals === "object") {
+        Object.entries(accommodationData.meals).forEach(([dateStr, dayMeals]) => {
+          const slots = ["breakfast", "lunch", "dinner"].map((mealType) => ({
+            type: mealType,
+            taken: !!dayMeals[mealType], // true if selected, false if not
+          }));
+          mealsTracking.push({ date: new Date(dateStr), slots });
+        });
+      }
+
+      return {
+        ...player,
+        mealsTracking,
+      };
+    });
+
     // ---- Save Accommodation ----
     const newAccommodation = new Accommodation({
       userId,
@@ -249,7 +353,7 @@ export const verifyAccommodationPayment = async (req, res) => {
       genderCategory: accommodationData.genderCategory,
       checkInDate: checkIn,
       checkOutDate: checkOut,
-      players: accommodationData.players,
+      players: playersWithMeals,
       accommodationFee: accommodationData.accommodationFee,
       couponCode: accommodationData.couponCode || null,
       couponDiscount: accommodationData.couponDiscount || 0,
@@ -404,7 +508,6 @@ export const updateMealSlot = async (req, res) => {
 
 
 
-
 export const getAccommodation = async (req, res) => {
   try {
     const { eventId, userId } = req.query;
@@ -415,11 +518,17 @@ export const getAccommodation = async (req, res) => {
     if (userId) filter.userId = userId;
 
     const accommodations = await Accommodation.find(filter)
+      .sort({ createdAt: -1 })
+      .populate({
+        path: "userId",
+        select: "fullname email _id", // populate user info
+      });
 
     if (!accommodations || accommodations.length === 0) {
       return res.status(404).json({ message: "No accommodation found" });
     }
 
+    // You can now directly return eventName from document
     res.status(200).json({
       message: "Accommodation fetched successfully",
       count: accommodations.length,
@@ -432,3 +541,30 @@ export const getAccommodation = async (req, res) => {
 };
 
 
+export const getMyAccommodations = async (req, res) => {
+  try {
+    const userId = req?.user?._id;
+    if (!userId) return res.status(401).json({ message: "User not logged in" });
+
+    const accommodations = await Accommodation.find({ userId })
+      .sort({ createdAt: -1 })
+      .populate({
+        path: "userId",
+        select: "fullname email _id", // populate user info
+      });
+    console.log(accommodations)
+
+    if (!accommodations.length) {
+      return res.status(404).json({ message: "No accommodations found for this user" });
+    }
+
+    res.status(200).json({
+      message: "Accommodations fetched successfully",
+      count: accommodations.length,
+      accommodations,
+    });
+  } catch (error) {
+    console.error("Error fetching accommodations:", error);
+    res.status(500).json({ message: "Internal server error", error: error.message });
+  }
+};

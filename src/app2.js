@@ -18,8 +18,6 @@ import accommodationRoutes from "./routes/accommodation.routes.js";
 import couponRoutes from "./routes/coupon.routes.js";
 import productRoutes from "./routes/product.routes.js";
 import merchOrderRoutes from "./routes/merchorder.routes.js";
-import proniteRouter from "./routes/pronite.routes.js";
-import consentRouter from "./routes/consent.routes.js";
 import path from "path";
 
 // import dashboardRouter from "./routes/dashboard.routes.js";
@@ -27,8 +25,8 @@ import path from "path";
 
 // Static allowlist (base)
 const allowedOrigins = [
-  "http://localhost:5173",
-  "http://localhost:3000",
+  // "http://localhost:5173",
+  // "http://localhost:3000",
   "https://infinito.iitp.ac.in",
   "https://infinitotest.34.47.128.100.nip.io",
   "https://infinito-client-2025.vercel.app",
@@ -87,16 +85,16 @@ app.use(cors(corsOptions));
 // app.options("*", cors(corsOptions));
 
 
-// app.use((req, res, next) => {
-//  res.header("Access-Control-Allow-Origin", req.headers.origin || "*");
-//  res.header("Access-Control-Allow-Credentials", "true");
-//  res.header("Access-Control-Allow-Methods", "GET,POST,PUT,DELETE,OPTIONS");
-//  res.header("Access-Control-Allow-Headers", "Content-Type,Authorization,X-Requested-With");
-//  if (req.method === "OPTIONS") {
-//    return res.sendStatus(204);
-//  }
-//  next();
-// });
+app.use((req, res, next) => {
+ res.header("Access-Control-Allow-Origin", req.headers.origin || "*");
+ res.header("Access-Control-Allow-Credentials", "true");
+ res.header("Access-Control-Allow-Methods", "GET,POST,PUT,DELETE,OPTIONS");
+ res.header("Access-Control-Allow-Headers", "Content-Type,Authorization,X-Requested-With");
+ if (req.method === "OPTIONS") {
+   return res.sendStatus(204);
+ }
+ next();
+});
 
 
 
@@ -126,8 +124,8 @@ app.use = function (path, ...handlers) {
 
 
 // Common middlewares
-app.use(express.json({ limit: "16kb" }));
-app.use(express.urlencoded({ extended: true, limit: "16kb" }));
+app.use(express.json({ limit: "10mb" }));
+app.use(express.urlencoded({ limit: "10mb", extended: true }));
 app.use(express.static("public"));
 app.use(cookieParser());
 
@@ -150,8 +148,7 @@ app.use("/api/v1/accommodation", accommodationRoutes);
 app.use("/api/v1/coupons", couponRoutes);
 app.use("/api/v1/product", productRoutes);
 app.use("/api/v1/merch", merchOrderRoutes);
-app.use("/api/v1/consent", consentRouter )
-app.use("/uploads", express.static(path.join(process.cwd(), "uploads")));app.use("/api/v1/pronite", proniteRouter);
+app.use("/uploads", express.static(path.join(process.cwd(), "uploads")));
 
 
 //admin-routes
